@@ -25,7 +25,12 @@
     "ledger_cli": {
       "type": "string",
       "description": "The ledger client to use",
-      "enum": ["", "ledger", "hledger", "beancount"]
+      "enum": [
+        "",
+        "ledger",
+        "hledger",
+        "beancount"
+      ]
     },
     "default_currency": {
       "type": "string",
@@ -679,7 +684,11 @@
       "ui:widget": "boolean",
       "type": "string",
       "description": "When strict mode is enabled, all the accounts and commodities should be defined before use.",
-      "enum": ["", "yes", "no"]
+      "enum": [
+        "",
+        "yes",
+        "no"
+      ]
     },
     "retirement": {
       "type": "object",
@@ -694,7 +703,9 @@
           "password": ""
         }
       ],
-      "itemsUniqueProperties": ["username"],
+      "itemsUniqueProperties": [
+        "username"
+      ],
       "items": {
         "type": "object",
         "description": "User account configuration",
@@ -715,7 +726,10 @@
           }
         },
         "ui:header": "username",
-        "required": ["username", "password"],
+        "required": [
+          "username",
+          "password"
+        ],
         "additionalProperties": false
       }
     },
@@ -729,12 +743,18 @@
             {
               "name": "Retirement",
               "swr": 4,
-              "expenses": ["Expenses:*"],
-              "savings": ["Assets:*"],
+              "expenses": [
+                "Expenses:*"
+              ],
+              "savings": [
+                "Assets:*"
+              ],
               "yearly_expenses": 0
             }
           ],
-          "itemsUniqueProperties": ["name"],
+          "itemsUniqueProperties": [
+            "name"
+          ],
           "items": {
             "description": "Retirement Goal configuration",
             "type": "object",
@@ -761,7 +781,9 @@
               "expenses": {
                 "type": "array",
                 "description": "List of expense accounts",
-                "default": ["Expenses:Utilities"],
+                "default": [
+                  "Expenses:Utilities"
+                ],
                 "items": {
                   "type": "string"
                 },
@@ -771,7 +793,9 @@
               "savings": {
                 "type": "array",
                 "description": "List of accounts where you keep retirement savings",
-                "default": ["Assets:Equity"],
+                "default": [
+                  "Assets:Equity"
+                ],
                 "items": {
                   "type": "string"
                 },
@@ -784,7 +808,12 @@
               }
             },
             "ui:header": "name",
-            "required": ["name", "icon", "swr", "savings"],
+            "required": [
+              "name",
+              "icon",
+              "swr",
+              "savings"
+            ],
             "additionalProperties": false
           }
         },
@@ -793,11 +822,15 @@
           "default": [
             {
               "name": "Emergency Fund",
-              "accounts": ["Assets:*"],
+              "accounts": [
+                "Assets:*"
+              ],
               "target": 1000000
             }
           ],
-          "itemsUniqueProperties": ["name"],
+          "itemsUniqueProperties": [
+            "name"
+          ],
           "items": {
             "description": "Savings Goal configuration",
             "type": "object",
@@ -823,7 +856,9 @@
                   },
                   {
                     "type": "string",
-                    "enum": [""]
+                    "enum": [
+                      ""
+                    ]
                   }
                 ],
                 "description": "Savings Target date"
@@ -841,7 +876,9 @@
               "accounts": {
                 "type": "array",
                 "description": "List of savings accounts",
-                "default": ["Assets:Equity"],
+                "default": [
+                  "Assets:Equity"
+                ],
                 "items": {
                   "type": "string"
                 },
@@ -854,9 +891,16 @@
               }
             },
             "ui:header": "name",
-            "required": ["name", "icon", "target", "accounts"],
+            "required": [
+              "name",
+              "icon",
+              "target",
+              "accounts"
+            ],
             "dependentRequired": {
-              "target_date": ["rate"]
+              "target_date": [
+                "rate"
+              ]
             },
             "additionalProperties": false
           }
@@ -871,7 +915,11 @@
           "ui:widget": "boolean",
           "type": "string",
           "description": "Rollover unspent money to next month",
-          "enum": ["", "yes", "no"]
+          "enum": [
+            "",
+            "yes",
+            "no"
+          ]
         }
       },
       "additionalProperties": false
@@ -882,10 +930,14 @@
       "default": [
         {
           "code": "bank",
-          "accounts": ["Assets:Checking"]
+          "accounts": [
+            "Assets:Checking"
+          ]
         }
       ],
-      "itemsUniqueProperties": ["code"],
+      "itemsUniqueProperties": [
+        "code"
+      ],
       "items": {
         "type": "object",
         "ui:header": "code",
@@ -907,7 +959,9 @@
           },
           "accounts": {
             "type": "array",
-            "default": ["Assets:Checking"],
+            "default": [
+              "Assets:Checking"
+            ],
             "items": {
               "type": "string"
             },
@@ -915,14 +969,27 @@
             "uniqueItems": true
           }
         },
-        "required": ["code", "accounts"],
+        "required": [
+          "code",
+          "accounts"
+        ],
         "additionalProperties": false
       }
     },
     "allocation_targets": {
       "type": "array",
-      "default": [{ "name": "Debt", "target": 20, "accounts": ["Assets:Debt:*"] }],
-      "itemsUniqueProperties": ["name"],
+      "default": [
+        {
+          "name": "Debt",
+          "target": 20,
+          "accounts": [
+            "Assets:Debt:*"
+          ]
+        }
+      ],
+      "itemsUniqueProperties": [
+        "name"
+      ],
       "items": {
         "type": "object",
         "ui:header": "name",
@@ -939,14 +1006,20 @@
           "accounts": {
             "type": "array",
             "description": "List of accounts to consider for this target",
-            "default": ["Assets:Debt:*"],
+            "default": [
+              "Assets:Debt:*"
+            ],
             "items": {
               "type": "string"
             },
             "ui:widget": "accounts"
           }
         },
-        "required": ["name", "target", "accounts"],
+        "required": [
+          "name",
+          "target",
+          "accounts"
+        ],
         "additionalProperties": false
       }
     },
@@ -955,11 +1028,16 @@
       "default": [
         {
           "name": "AAPL",
-          "price": { "provider": "com-yahoo", "code": "AAPL" },
+          "price": {
+            "provider": "com-yahoo",
+            "code": "AAPL"
+          },
           "tax_category": "unlisted_equity"
         }
       ],
-      "itemsUniqueProperties": ["name"],
+      "itemsUniqueProperties": [
+        "name"
+      ],
       "items": {
         "type": "object",
         "ui:header": "name",
@@ -970,7 +1048,13 @@
           },
           "type": {
             "type": "string",
-            "enum": ["mutualfund", "stock", "nps", "metal", "unknown"]
+            "enum": [
+              "mutualfund",
+              "stock",
+              "nps",
+              "metal",
+              "unknown"
+            ]
           },
           "price": {
             "type": "object",
@@ -987,21 +1071,37 @@
                 ]
               },
               "code": {
-                "type": ["string", "integer"]
+                "type": [
+                  "string",
+                  "integer"
+                ]
               }
             },
-            "required": ["provider", "code"]
+            "required": [
+              "provider",
+              "code"
+            ]
           },
-
           "harvest": {
             "type": "integer"
           },
           "tax_category": {
             "type": "string",
-            "enum": ["", "debt", "equity", "equity65", "equity35", "unlisted_equity"]
+            "enum": [
+              "",
+              "debt",
+              "equity",
+              "equity65",
+              "equity35",
+              "unlisted_equity"
+            ]
           }
         },
-        "required": ["name", "type", "price"],
+        "required": [
+          "name",
+          "type",
+          "price"
+        ],
         "additionalProperties": false
       }
     },
@@ -1013,7 +1113,9 @@
           "content": ""
         }
       ],
-      "itemsUniqueProperties": ["name"],
+      "itemsUniqueProperties": [
+        "name"
+      ],
       "items": {
         "type": "object",
         "ui:header": "name",
@@ -1028,7 +1130,9 @@
             "ui:widget": "textarea"
           }
         },
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "additionalProperties": false
       }
     },
@@ -1040,7 +1144,9 @@
           "icon": "fa6-brands:apple"
         }
       ],
-      "itemsUniqueProperties": ["name"],
+      "itemsUniqueProperties": [
+        "name"
+      ],
       "items": {
         "type": "object",
         "ui:header": "name",
@@ -1056,13 +1162,17 @@
             "ui:widget": "icon"
           }
         },
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "additionalProperties": false
       }
     },
     "credit_cards": {
       "type": "array",
-      "itemsUniqueProperties": ["account"],
+      "itemsUniqueProperties": [
+        "account"
+      ],
       "default": [
         {
           "account": "Liabilities:CreditCard:Chase",
@@ -1099,7 +1209,15 @@
           "network": {
             "type": "string",
             "description": "Network of the card",
-            "enum": ["visa", "mastercard", "dinersclub", "amex", "rupay", "jcb", "discover"]
+            "enum": [
+              "visa",
+              "mastercard",
+              "dinersclub",
+              "amex",
+              "rupay",
+              "jcb",
+              "discover"
+            ]
           },
           "number": {
             "type": "string",
@@ -1127,6 +1245,9 @@
       }
     }
   },
-  "required": ["journal_path", "db_path"],
+  "required": [
+    "journal_path",
+    "db_path"
+  ],
   "additionalProperties": false
 }

@@ -22,6 +22,16 @@
     }
   }
 
+    function colorForRollover(accountBudget: AccountBudget): string {
+    if (accountBudget.rollover == 0) {
+      return "info";
+    } else if (accountBudget.rollover > 0) {
+      return "success";
+    } else {
+      return "danger";
+    }
+  }
+
   const chart: Action<HTMLElement, { ab: AccountBudget }> = (element, props) => {
     renderBudget(element, props.ab);
     return {};
@@ -66,7 +76,7 @@
       {#if !compact && accountBudget.rollover != 0}
         <div class="mr-3">
           <span class="budget-label mr-1">Rollover</span>
-          <span class="budget-amount warn">{formatCurrency(accountBudget.rollover)}</span>
+          <span class="budget-amount {colorForRollover(accountBudget)}">{formatCurrency(accountBudget.rollover)}</span>
         </div>
       {/if}
       <div>

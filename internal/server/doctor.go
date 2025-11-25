@@ -56,24 +56,24 @@ func init() {
 				Summary:     "Credit Entry",
 				Description: "Income account should never have credit entry."},
 			Predicate: ruleNonCreditAccount},
-		{
-			Issue: Issue{
-				Level:       ERROR,
-				Summary:     "Debit Entry",
-				Description: "Expense Account should never have debit entry."},
-			Predicate: ruleNonDebitAccount},
+		// {
+		// 	Issue: Issue{
+		// 		Level:       ERROR,
+		// 		Summary:     "Debit Entry",
+		// 		Description: "Expense Account should never have debit entry."},
+		// 	Predicate: ruleNonDebitAccount},
 		{
 			Issue: Issue{
 				Level:       ERROR,
 				Summary:     "Exchange Price Missing",
 				Description: "Exchange price is missing for the commodity."},
 			Predicate: ruleExchangePriceMissing},
-		{
-			Issue: Issue{
-				Level:       WARN,
-				Summary:     "Unit Price Mismatch",
-				Description: "Unit price used in the journal doesn't match the price fetched from external system."},
-			Predicate: ruleJournalPriceMismatch},
+		// {
+		// 	Issue: Issue{
+		// 		Level:       WARN,
+		// 		Summary:     "Unit Price Mismatch",
+		// 		Description: "Unit price used in the journal doesn't match the price fetched from external system."},
+		// 	Predicate: ruleJournalPriceMismatch},
 		{
 			Issue: Issue{
 				Level:       WARN,

@@ -88,11 +88,11 @@ func computeBudet(db *gorm.DB, forecastPostings, expensesPostings []posting.Post
 				}
 
 				budget := buildBudget(date, account, balance[account], fs, es, date.Before(currentMonth))
-				if budget.Available.IsPositive() {
-					balance[account] = budget.Available
-				} else {
-					balance[account] = decimal.Zero
-				}
+				// if budget.Available.IsPositive() {
+				balance[account] = budget.Available
+				// } else {
+				// 	balance[account] = decimal.Zero
+				// }
 
 				accountBudgets = append(accountBudgets, budget)
 			}
