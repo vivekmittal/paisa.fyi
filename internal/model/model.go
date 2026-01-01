@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/ananthakumaran/paisa/internal/config"
 	"github.com/ananthakumaran/paisa/internal/ledger"
@@ -73,6 +74,9 @@ func SyncCommodities(db *gorm.DB) error {
 	commodities := lo.Shuffle(commodity.All())
 
 	var errors []error
+	wg := sync.WaitGroup{}
+	mutex := sync.Mutex{}
+
 	for _, commodity := range commodities {
 		name := commodity.Name
 		log.Info("Fetching commodity ", name)
@@ -80,17 +84,23 @@ func SyncCommodities(db *gorm.DB) error {
 		var prices []*price.Price
 		var err error
 
-		provider := scraper.GetProviderByCode(commodity.Price.Provider)
-		prices, err = provider.GetPrices(code, name)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			provider := scraper.GetProviderByCode(commodity.Price.Provider)
+			prices, err = provider.GetPrices(code, name)
+			if err != nil {
+				log.Error(err)
+				errors = append(errors, fmt.Errorf("Failed to fetch price for %s: %w", name, err))
+			}
 
-		if err != nil {
-			log.Error(err)
-			errors = append(errors, fmt.Errorf("Failed to fetch price for %s: %w", name, err))
-			continue
-		}
-
-		price.UpsertAllByTypeNameAndID(db, commodity.Type, name, code, prices)
+			mutex.Lock()
+			defer mutex.Unlock()
+			price.UpsertAllByTypeNameAndID(db, commodity.Type, name, code, prices)
+		}()
 	}
+
+	wg.Wait()
 
 	if len(errors) > 0 {
 		var message string
