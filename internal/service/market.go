@@ -47,15 +47,37 @@ func loadPriceCache(db *gorm.DB) {
 		log.Fatal(result.Error)
 	}
 
-	for commodityName, postings := range lo.GroupBy(postings, func(p posting.Posting) string { return p.Commodity }) {
-		if !utils.IsCurrency(postings[0].Commodity) {
-			result := db.Where("commodity_type = ? and commodity_name = ?", config.Unknown, commodityName).Find(&prices)
-			if result.Error != nil {
-				log.Fatal(result.Error)
-			}
+	// Collect unique non-currency commodities only
+	nonCurrencyCommodities := make(map[string]struct{})
+	for _, p := range postings {
+		if !utils.IsCurrency(p.Commodity) {
+			nonCurrencyCommodities[p.Commodity] = struct{}{}
+		}
+	}
 
+	// Single query for all unknown commodity prices
+	if len(nonCurrencyCommodities) > 0 {
+		commodityNames := make([]string, 0, len(nonCurrencyCommodities))
+		for name := range nonCurrencyCommodities {
+			commodityNames = append(commodityNames, name)
+		}
+
+		var unknownPrices []price.Price
+		result = db.Where("commodity_type = ? AND commodity_name IN ?", config.Unknown, commodityNames).Find(&unknownPrices)
+		if result.Error != nil {
+			log.Fatal(result.Error)
+		}
+
+		// Group prices by commodity name
+		pricesByCommodity := make(map[string][]price.Price)
+		for _, price := range unknownPrices {
+			pricesByCommodity[price.CommodityName] = append(pricesByCommodity[price.CommodityName], price)
+		}
+
+		// Create trees for each non-currency commodity
+		for commodityName := range nonCurrencyCommodities {
 			postingPricesTree := btree.New(2)
-			for _, price := range prices {
+			for _, price := range pricesByCommodity[commodityName] {
 				postingPricesTree.ReplaceOrInsert(price)
 			}
 			pcache.postingPricesTree[commodityName] = postingPricesTree

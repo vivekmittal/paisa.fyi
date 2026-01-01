@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ananthakumaran/paisa/internal/config"
 	"github.com/ananthakumaran/paisa/internal/ledger"
@@ -69,46 +70,76 @@ func SyncJournal(db *gorm.DB) (string, error) {
 }
 
 func SyncCommodities(db *gorm.DB) error {
+	// Optimize for bulk writes
+	db.Exec("PRAGMA journal_mode=WAL")
+	db.Exec("PRAGMA synchronous=NORMAL")
+	db.Exec("PRAGMA cache_size=-256000") // 128MB cache
+	db.Exec("PRAGMA temp_store=MEMORY")
+
 	AutoMigrate(db)
 	log.Info("Fetching commodities price history")
 	commodities := lo.Shuffle(commodity.All())
 
-	var errors []error
+	// Start timing for fetching all securities
+	fetchStart := time.Now()
+
+	results := make(chan price.UpsertResult, len(commodities))
 	wg := sync.WaitGroup{}
-	mutex := sync.Mutex{}
 
 	for _, commodity := range commodities {
 		name := commodity.Name
 		log.Info("Fetching commodity ", name)
-		code := commodity.Price.Code
-		var prices []*price.Price
-		var err error
 
 		wg.Add(1)
-		go func() {
+		go func(c config.Commodity) {
 			defer wg.Done()
-			provider := scraper.GetProviderByCode(commodity.Price.Provider)
-			prices, err = provider.GetPrices(code, name)
+
+			name := c.Name
+			code := c.Price.Code
+			log.Info("Fetching commodity ", name)
+
+			provider := scraper.GetProviderByCode(c.Price.Provider)
+			prices, err := provider.GetPrices(code, name)
+
 			if err != nil {
 				log.Error(err)
-				errors = append(errors, fmt.Errorf("Failed to fetch price for %s: %w", name, err))
 			}
 
-			mutex.Lock()
-			defer mutex.Unlock()
-			price.UpsertAllByTypeNameAndID(db, commodity.Type, name, code, prices)
-		}()
+			results <- price.UpsertResult{
+				CommodityType: c.Type,
+				Name:          name,
+				Code:          code,
+				Prices:        prices,
+			}
+		}(commodity)
 	}
 
-	wg.Wait()
+	// Wait for all fetches to complete
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
 
-	if len(errors) > 0 {
-		var message string
-		for _, error := range errors {
-			message += error.Error() + "\n"
+	// Collect all results and measure fetch time
+	var allResults []price.UpsertResult
+	for r := range results {
+		allResults = append(allResults, r)
+	}
+
+	fetchDuration := time.Since(fetchStart)
+	log.Infof("Fetched all securities in %v", fetchDuration)
+
+	// Single database transaction for all writes
+	if len(allResults) > 0 {
+		// Start timing for database upsert
+		upsertStart := time.Now()
+		if err := price.UpsertAllResults(db, allResults); err != nil {
+			return fmt.Errorf("database transaction failed: %w", err)
 		}
-		return fmt.Errorf("%s", strings.Trim(message, "\n"))
+		upsertDuration := time.Since(upsertStart)
+		log.Infof("Upserted all securities in database in %v", upsertDuration)
 	}
+
 	return nil
 }
 
