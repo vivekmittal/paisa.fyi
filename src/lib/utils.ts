@@ -176,6 +176,12 @@ export interface AssetBreakdown {
   absoluteReturn: number;
 }
 
+export interface AssetDistribution {
+  category: string;
+  amount: number;
+  percentage: number;
+}
+
 export interface LiabilityBreakdown {
   group: string;
   drawn_amount: number;

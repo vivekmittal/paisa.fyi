@@ -5,12 +5,14 @@
     formatFloat,
     isMobile,
     type Legend,
-    type Networth
+    type Networth,
+    type AssetDistribution
   } from "$lib/utils";
   import COLORS from "$lib/colors";
   import { renderNetworth } from "$lib/networth";
+  import * as assetDistribution from "$lib/asset_distribution";
   import _ from "lodash";
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import { dateRange, setAllowedDateRange } from "../../../../store";
   import LevelItem from "$lib/components/LevelItem.svelte";
   import ZeroState from "$lib/components/ZeroState.svelte";
@@ -25,6 +27,9 @@
   let destroy: () => void;
   let points: Networth[] = [];
   let legends: Legend[] = [];
+  let assetDistributions: AssetDistribution[] = [];
+  let assetDistributionLegends: Legend[] = [];
+  let assetDistributionRenderer: (data: AssetDistribution[]) => void;
 
   $: if (!_.isEmpty(points)) {
     if (destroy) {
@@ -58,6 +63,17 @@
       gain = current.gainAmount;
     }
     xirr = result.xirr;
+    assetDistributions = result.assetDistribution || [];
+
+    if (!_.isEmpty(assetDistributions)) {
+      await tick(); // Wait for DOM to update with the SVG element
+      const { renderer, legends } = assetDistribution.renderAssetDistribution(
+        "#d3-asset-distribution",
+        assetDistributions
+      );
+      assetDistributionRenderer = renderer;
+      assetDistributionLegends = legends;
+    }
   });
 </script>
 
@@ -97,3 +113,23 @@
     <BoxLabel text="Networth Timeline" />
   </div>
 </section>
+
+{#if !_.isEmpty(assetDistributions)}
+  <section class="section tab-networth">
+    <div class="container is-fluid">
+      <div class="columns">
+        <div class="column is-12">
+          <div class="box px-2 pb-0">
+            <LegendCard legends={assetDistributionLegends} clazz="mb-2 mt-2 overflow-x-auto" />
+            <svg
+              id="d3-asset-distribution"
+              height="250"
+              width="100%"
+            />
+          </div>
+        </div>
+      </div>
+      <BoxLabel text="Asset Distribution" />
+    </div>
+  </section>
+{/if}

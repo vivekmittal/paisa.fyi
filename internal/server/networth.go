@@ -5,6 +5,7 @@ import (
 
 	"github.com/ananthakumaran/paisa/internal/model/posting"
 	"github.com/ananthakumaran/paisa/internal/query"
+	"github.com/ananthakumaran/paisa/internal/server/assets"
 	"github.com/ananthakumaran/paisa/internal/service"
 	"github.com/ananthakumaran/paisa/internal/utils"
 	"github.com/gin-gonic/gin"
@@ -28,7 +29,8 @@ func GetNetworth(db *gorm.DB) gin.H {
 	postings = service.PopulateMarketPrice(db, postings)
 	networthTimeline := computeNetworthTimeline(db, postings, false)
 	xirr := service.XIRR(db, postings)
-	return gin.H{"networthTimeline": networthTimeline, "xirr": xirr}
+	assetDistribution := assets.GetAssetDistribution(db)
+	return gin.H{"networthTimeline": networthTimeline, "xirr": xirr, "assetDistribution": assetDistribution}
 }
 
 func GetCurrentNetworth(db *gorm.DB) gin.H {
