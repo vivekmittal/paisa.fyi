@@ -86,13 +86,20 @@ func SyncCommodities(db *gorm.DB) error {
 	results := make(chan price.UpsertResult, len(commodities))
 	wg := sync.WaitGroup{}
 
+	// Semaphore to limit concurrency to 10
+	sem := make(chan struct{}, 20)
+
 	for _, commodity := range commodities {
 		name := commodity.Name
 		log.Info("Fetching commodity ", name)
 
 		wg.Add(1)
+		// Acquire semaphore
+		sem <- struct{}{}
 		go func(c config.Commodity) {
 			defer wg.Done()
+			// Release semaphore when done
+			defer func() { <-sem }()
 
 			name := c.Name
 			code := c.Price.Code
