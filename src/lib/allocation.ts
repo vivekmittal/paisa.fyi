@@ -21,20 +21,51 @@ import chroma from "chroma-js";
 
 export function renderAllocationTarget(
   allocationTargets: AllocationTarget[],
-  color: d3.ScaleOrdinal<string, string>
+  color: d3.ScaleOrdinal<string, string>,
+  options: {
+    disabledNames?: Set<string>;
+  } = {}
 ) {
   const id = "#d3-allocation-target";
+  const disabledNames = options.disabledNames ?? new Set<string>();
+
+  // Idempotent: clear any prior render so re-invocation doesn't stack.
+  d3.select(id).selectAll("*").remove();
+  d3.select("#d3-allocation-target-treemap").selectAll("*").remove();
 
   if (_.isEmpty(allocationTargets)) {
     return;
   }
   allocationTargets = _.sortBy(allocationTargets, (t) => t.name);
+
+  const activeTargets = allocationTargets.filter((t) => !disabledNames.has(t.name));
+  const targetSum = _.sumBy(activeTargets, (t) => t.target);
+  const currentSum = _.sumBy(activeTargets, (t) => t.current);
+
+  type Row = AllocationTarget & {
+    disabled: boolean;
+    displayTarget: number;
+    displayCurrent: number;
+  };
+  const rows: Row[] = allocationTargets.map((t) => {
+    const isDisabled = disabledNames.has(t.name);
+    if (isDisabled || targetSum === 0) {
+      return { ...t, disabled: true, displayTarget: 0, displayCurrent: 0 };
+    }
+    return {
+      ...t,
+      disabled: false,
+      displayTarget: (t.target / targetSum) * 100,
+      displayCurrent: currentSum > 0 ? (t.current / currentSum) * 100 : 0
+    };
+  });
+
   const BAR_HEIGHT = rem(25);
   const svg = d3.select(id),
     margin = { top: rem(20), right: rem(20), bottom: rem(10), left: rem(150) },
     fullWidth = Math.max(document.getElementById(id.substring(1)).parentElement.clientWidth, 1000),
     width = fullWidth - margin.left - margin.right,
-    height = allocationTargets.length * BAR_HEIGHT * 2,
+    height = rows.length * BAR_HEIGHT * 2,
     g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
   svg.attr("height", height + margin.top + margin.bottom);
 
@@ -45,7 +76,7 @@ export function renderAllocationTarget(
   const colors = [COLORS.primary, COLORS.secondary, COLORS.diff];
 
   const y = d3.scaleBand().range([0, height]).paddingInner(0).paddingOuter(0);
-  y.domain(allocationTargets.map((t) => t.name));
+  y.domain(rows.map((t) => t.name));
 
   const y1 = d3
     .scaleBand()
@@ -61,10 +92,12 @@ export function renderAllocationTarget(
     .domain([5, 10, 15])
     .range([COLORS.gain, COLORS.warn, COLORS.loss, COLORS.loss]);
 
-  const maxX = _.chain(allocationTargets)
-    .flatMap((t) => [t.current, t.target])
-    .max()
-    .value();
+  const activeRows = rows.filter((r) => !r.disabled);
+  const maxX =
+    _.chain(activeRows)
+      .flatMap((t) => [t.displayCurrent, t.displayTarget])
+      .max()
+      .value() || 100;
   const targetWidth = rem(400);
   const targetMargin = rem(20);
   const textGroupWidth = rem(150);
@@ -114,12 +147,19 @@ export function renderAllocationTarget(
         .tickFormat(skipTicks(40, x, (n: number) => formatFloat(n, 0)))
     );
 
-  g.append("g").attr("class", "axis y dark").call(d3.axisLeft(y));
+  const yAxis = g.append("g").attr("class", "axis y dark").call(d3.axisLeft(y));
+  yAxis
+    .selectAll(".tick")
+    .style("opacity", (name) => (disabledNames.has(name as string) ? 0.4 : 1))
+    .selectAll("text")
+    .style("text-decoration", (name) =>
+      disabledNames.has(name as string) ? "line-through" : "none"
+    );
 
   const textGroup = g
     .append("g")
     .selectAll("g")
-    .data(allocationTargets)
+    .data(rows)
     .enter()
     .append("g")
     .attr("class", "inline-text");
@@ -134,58 +174,63 @@ export function renderAllocationTarget(
 
   textGroup
     .append("text")
-    .text((t) => formatFloat(t.target))
+    .text((t) => (t.disabled ? "—" : formatFloat(t.displayTarget)))
     .attr("text-anchor", "end")
     .attr("dominant-baseline", "middle")
-    .style("fill", z("target"))
+    .style("fill", (t) => (t.disabled ? "#999" : z("target")))
+    .style("opacity", (t) => (t.disabled ? 0.4 : 1))
     .attr("x", textGroupZero + (textGroupWidth * 1) / 3)
     .attr("y", (t) => y(t.name) + y.bandwidth() / 2);
 
   textGroup
     .append("text")
-    .text((t) => formatFloat(t.current))
+    .text((t) => (t.disabled ? "—" : formatFloat(t.displayCurrent)))
     .attr("text-anchor", "end")
     .attr("dominant-baseline", "middle")
-    .style("fill", z("current"))
+    .style("fill", (t) => (t.disabled ? "#999" : z("current")))
+    .style("opacity", (t) => (t.disabled ? 0.4 : 1))
     .attr("x", textGroupZero + (textGroupWidth * 2) / 3)
     .attr("y", (t) => y(t.name) + y.bandwidth() / 2);
 
   textGroup
     .append("text")
-    .text((t) => formatFloat(t.current - t.target))
+    .text((t) => (t.disabled ? "—" : formatFloat(t.displayCurrent - t.displayTarget)))
     .attr("text-anchor", "end")
     .attr("dominant-baseline", "middle")
     .style("fill", (t) =>
-      chroma(z1(Math.abs(t.current - t.target)))
-        .darken()
-        .hex()
+      t.disabled
+        ? "#999"
+        : chroma(z1(Math.abs(t.displayCurrent - t.displayTarget)))
+            .darken()
+            .hex()
     )
+    .style("opacity", (t) => (t.disabled ? 0.4 : 1))
     .attr("x", textGroupZero + (textGroupWidth * 3) / 3)
     .attr("y", (t) => y(t.name) + y.bandwidth() / 2);
 
   const groups = g
     .append("g")
     .selectAll("g.group")
-    .data(allocationTargets)
+    .data(activeRows)
     .enter()
     .append("g")
     .attr("class", "group");
 
   groups
     .append("rect")
-    .attr("fill", (d) => z1(Math.abs(d.target - d.current)))
+    .attr("fill", (d) => z1(Math.abs(d.displayTarget - d.displayCurrent)))
     .attr("x", x1(0))
     .attr("y", (d) => y(d.name) + y.bandwidth() / 4)
     .attr("height", y.bandwidth() / 2)
-    .attr("width", (d) => x1(d.current));
+    .attr("width", (d) => x1(d.displayCurrent));
 
   groups
     .append("line")
     .attr("stroke-width", 3)
     .attr("stroke-linecap", "round")
     .attr("stroke", z("target"))
-    .attr("x1", (d) => x1(d.target))
-    .attr("x2", (d) => x1(d.target))
+    .attr("x1", (d) => x1(d.displayTarget))
+    .attr("x2", (d) => x1(d.displayTarget))
     .attr("y1", (d) => y(d.name) + y.bandwidth() / 8)
     .attr("y2", (d) => y(d.name) + (y.bandwidth() / 8) * 7);
 
@@ -193,7 +238,7 @@ export function renderAllocationTarget(
     .append("polygon")
     .attr(
       "transform",
-      (d) => "translate(" + x1(d.target) + "," + (y(d.name) + y.bandwidth() / 8) + ")"
+      (d) => "translate(" + x1(d.displayTarget) + "," + (y(d.name) + y.bandwidth() / 8) + ")"
     )
     .attr("points", "0 0, 0 15, 20 6")
     .attr("fill", z("target"));
@@ -205,7 +250,7 @@ export function renderAllocationTarget(
     .style("position", "absolute")
     .style("width", "100%")
     .selectAll("div")
-    .data(allocationTargets)
+    .data(activeRows)
     .enter()
     .append("div")
     .style("position", "absolute")
