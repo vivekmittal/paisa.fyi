@@ -579,6 +579,12 @@ export function ajax(
 ): Promise<{ balancedPostings: BalancedPosting[] }>;
 export function ajax(route: "/api/networth"): Promise<{
   networthTimeline: Networth[];
+  currencyNetworths: {
+    name: string;
+    symbol: string;
+    commodity: string;
+    networthTimeline: Networth[];
+  }[];
   xirr: number;
 }>;
 export function ajax(route: "/api/gain"): Promise<{
@@ -882,7 +888,11 @@ function unicodeMinus(value: string) {
   return value.replace(/^-/, "\u2212");
 }
 
-export function formatCurrency(value: number, precision: number = null) {
+export function formatCurrency(
+  value: number,
+  precision: number = null,
+  locale: string = USER_CONFIG.locale
+) {
   value = normalize(value);
 
   if (precision == null) {
@@ -890,7 +900,7 @@ export function formatCurrency(value: number, precision: number = null) {
   }
 
   return unicodeMinus(
-    value.toLocaleString(USER_CONFIG.locale, {
+    value.toLocaleString(locale, {
       minimumFractionDigits: precision,
       maximumFractionDigits: precision
     })
@@ -901,7 +911,15 @@ export function formatCurrencyCrude(value: number) {
   return formatCurrencyCrudeWithPrecision(value, -1);
 }
 
-export function formatCurrencyCrudeWithPrecision(value: number, precision: number) {
+export function formatCurrencyCrudeWithLocale(value: number, locale: string) {
+  return formatCurrencyCrudeWithPrecision(value, -1, locale);
+}
+
+export function formatCurrencyCrudeWithPrecision(
+  value: number,
+  precision: number,
+  locale: string = USER_CONFIG.locale
+) {
   value = normalize(value);
 
   const options: Intl.NumberFormatOptions = {
@@ -915,7 +933,7 @@ export function formatCurrencyCrudeWithPrecision(value: number, precision: numbe
     options.minimumFractionDigits = precision;
   }
 
-  return unicodeMinus(value.toLocaleString(USER_CONFIG.locale, options));
+  return unicodeMinus(value.toLocaleString(locale, options));
 }
 
 export function formatFloat(value: number, precision = 2) {

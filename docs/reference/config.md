@@ -187,6 +187,18 @@ schedule_al:
     accounts:
       - Assets:Debt:Insurance
 
+## Networth Currencies
+# OPTIONAL, DEFAULT: []
+# Each entry adds a networth section (networth, XIRR, timeline) restated in that
+# currency. The rate is the price of `commodity` in the default currency.
+networth_currencies:
+  - name: USD
+    commodity: "$"
+    symbol: "$"
+  - name: GBP
+    commodity: GBP
+    symbol: "£"
+
 ## Allocation Target
 # OPTIONAL, DEFAULT: []
 allocation_targets:

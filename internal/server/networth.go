@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/ananthakumaran/paisa/internal/config"
 	"time"
 
 	"github.com/ananthakumaran/paisa/internal/model/posting"
@@ -28,9 +29,10 @@ func GetNetworth(db *gorm.DB) gin.H {
 
 	postings = service.PopulateMarketPrice(db, postings)
 	networthTimeline := computeNetworthTimeline(db, postings, false)
+	currencyNetworths := computeCurrencyNetworths(db, networthTimeline)
 	xirr := service.XIRR(db, postings)
 	assetDistribution := assets.GetAssetDistribution(db)
-	return gin.H{"networthTimeline": networthTimeline, "xirr": xirr, "assetDistribution": assetDistribution}
+	return gin.H{"networthTimeline": networthTimeline, "currencyNetworths": currencyNetworths, "xirr": xirr, "assetDistribution": assetDistribution}
 }
 
 func GetCurrentNetworth(db *gorm.DB) gin.H {
@@ -176,4 +178,83 @@ func computeNetworthTimeline(db *gorm.DB, postings []posting.Posting, computeBal
 		}
 	}
 	return networths
+}
+
+type CurrencyNetworth struct {
+	Name             string     `json:"name"`
+	Symbol           string     `json:"symbol"`
+	Commodity        string     `json:"commodity"`
+	NetworthTimeline []Networth `json:"networthTimeline"`
+}
+
+func computeCurrencyNetworths(db *gorm.DB, timeline []Networth) []CurrencyNetworth {
+	currencies := config.GetConfig().NetworthCurrencies
+	result := make([]CurrencyNetworth, 0, len(currencies))
+	for _, nc := range currencies {
+		symbol := nc.Symbol
+		if symbol == "" {
+			symbol = nc.Commodity
+		}
+		result = append(result, CurrencyNetworth{
+			Name:             nc.Name,
+			Symbol:           symbol,
+			Commodity:        nc.Commodity,
+			NetworthTimeline: computeConvertedNetworthTimeline(db, nc.Commodity, timeline),
+		})
+	}
+	return result
+}
+
+// computeConvertedNetworthTimeline restates the timeline in the currency whose
+// rate is the price of the commodity. Balances are converted at the rate of the
+// day, while each day's net new investment / withdrawal is converted at that
+// day's rate, so the gain reflects both asset performance and currency
+// movement.
+func computeConvertedNetworthTimeline(db *gorm.DB, commodity string, timeline []Networth) []Networth {
+	converted := []Networth{}
+	if len(timeline) == 0 || utils.IsCurrency(commodity) {
+		return converted
+	}
+
+	rates := service.CurrencyRates(db, commodity)
+	if len(rates) == 0 {
+		return converted
+	}
+
+	// dates before the first known rate use the earliest rate
+	rateAt := func(date time.Time) decimal.Decimal {
+		rate := rates[0].Value
+		for _, r := range rates {
+			if r.Date.After(date) {
+				break
+			}
+			rate = r.Value
+		}
+		return rate
+	}
+
+	investment := decimal.Zero
+	withdrawal := decimal.Zero
+	prev := Networth{}
+	for _, n := range timeline {
+		rate := rateAt(n.Date)
+		if rate.IsZero() {
+			continue
+		}
+
+		investment = investment.Add(n.InvestmentAmount.Sub(prev.InvestmentAmount).Div(rate))
+		withdrawal = withdrawal.Add(n.WithdrawalAmount.Sub(prev.WithdrawalAmount).Div(rate))
+		balance := n.BalanceAmount.Div(rate)
+		prev = n
+
+		converted = append(converted, Networth{
+			Date:                n.Date,
+			InvestmentAmount:    investment,
+			WithdrawalAmount:    withdrawal,
+			GainAmount:          balance.Add(withdrawal).Sub(investment),
+			BalanceAmount:       balance,
+			NetInvestmentAmount: investment.Sub(withdrawal),
+		})
+	}
+	return converted
 }

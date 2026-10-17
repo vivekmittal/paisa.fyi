@@ -115,6 +115,12 @@ type AllocationTarget struct {
 	Accounts []string `json:"accounts" yaml:"accounts"`
 }
 
+type NetworthCurrency struct {
+	Name      string `json:"name" yaml:"name"`
+	Commodity string `json:"commodity" yaml:"commodity"`
+	Symbol    string `json:"symbol" yaml:"symbol"`
+}
+
 type CreditCard struct {
 	Account         string `json:"account" yaml:"account"`
 	CreditLimit     int    `json:"credit_limit" yaml:"credit_limit"`
@@ -145,6 +151,8 @@ type Config struct {
 	ScheduleALs []ScheduleAL `json:"schedule_al" yaml:"schedule_al"`
 
 	AllocationTargets []AllocationTarget `json:"allocation_targets" yaml:"allocation_targets"`
+
+	NetworthCurrencies []NetworthCurrency `json:"networth_currencies" yaml:"networth_currencies"`
 
 	Commodities []Commodity `json:"commodities" yaml:"commodities"`
 
@@ -177,6 +185,7 @@ var defaultConfig = Config{
 	WeekStartingDay:            0,
 	ScheduleALs:                []ScheduleAL{},
 	AllocationTargets:          []AllocationTarget{},
+	NetworthCurrencies:         []NetworthCurrency{},
 	Commodities:                []Commodity{},
 	ImportTemplates:            []ImportTemplate{},
 	Accounts:                   []Account{},

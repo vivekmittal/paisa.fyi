@@ -55,6 +55,14 @@ func loadPriceCache(db *gorm.DB) {
 		}
 	}
 
+	// rates are needed for the networth currencies even when no posting uses
+	// the commodity
+	for _, nc := range config.GetConfig().NetworthCurrencies {
+		if !utils.IsCurrency(nc.Commodity) {
+			nonCurrencyCommodities[nc.Commodity] = struct{}{}
+		}
+	}
+
 	// Single query for all unknown commodity prices
 	if len(nonCurrencyCommodities) > 0 {
 		commodityNames := make([]string, 0, len(nonCurrencyCommodities))
@@ -179,4 +187,16 @@ func PopulateMarketPrice(db *gorm.DB, ps []posting.Posting) []posting.Posting {
 		p.MarketAmount = GetMarketPrice(db, p, date)
 		return p
 	})
+}
+
+// CurrencyRates returns the prices of the commodity (in the default currency)
+// sorted by date ascending. It is empty when no price is available.
+func CurrencyRates(db *gorm.DB, commodity string) []price.Price {
+	pcache.Do(func() { loadPriceCache(db) })
+
+	if pcache.pricesTree[commodity] == nil || pcache.postingPricesTree[commodity] == nil {
+		return []price.Price{}
+	}
+
+	return lo.Reverse(GetAllPrices(db, commodity))
 }

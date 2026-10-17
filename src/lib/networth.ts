@@ -1,11 +1,12 @@
 import * as d3 from "d3";
+import type dayjs from "dayjs";
 import { Delaunay } from "d3";
 import _ from "lodash";
 import tippy from "tippy.js";
 import COLORS from "./colors";
 import {
   formatCurrency,
-  formatCurrencyCrude,
+  formatCurrencyCrudeWithLocale,
   isMobile,
   now,
   svgUrl,
@@ -22,10 +23,80 @@ function investment(d: Networth) {
   return d.investmentAmount - d.withdrawalAmount;
 }
 
+export interface PeriodStats {
+  networth: number;
+  investment: number;
+  gain: number;
+  xirr: number;
+}
+
+function xirrOf(flows: { date: dayjs.Dayjs; amount: number }[]): number {
+  if (flows.length < 2 || !flows.some((f) => f.amount < 0) || !flows.some((f) => f.amount > 0)) {
+    return 0;
+  }
+  const t0 = flows[0].date;
+  const years = flows.map((f) => f.date.diff(t0, "day") / 365);
+  const npv = (r: number) =>
+    flows.reduce((sum, f, i) => sum + f.amount / Math.pow(1 + r, years[i]), 0);
+
+  // npv is decreasing in r, bisect
+  let lo = -0.9999,
+    hi = 1000;
+  if (npv(lo) * npv(hi) > 0) {
+    return 0;
+  }
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2;
+    if (npv(lo) * npv(mid) <= 0) {
+      hi = mid;
+    } else {
+      lo = mid;
+    }
+  }
+  return ((lo + hi) / 2) * 100;
+}
+
+// Stats for the selected period. The balance at the start of the period is
+// treated as the initial investment for XIRR.
+export function computePeriodStats(points: Networth[], from: dayjs.Dayjs, to: dayjs.Dayjs) {
+  const inRange = _.filter(points, (p) => p.date.isSameOrBefore(to) && p.date.isSameOrAfter(from));
+  const before = _.findLast(points, (p) => p.date.isBefore(from));
+  const end = _.last(inRange);
+  if (!end) {
+    return { networth: 0, investment: 0, gain: 0, xirr: 0 } as PeriodStats;
+  }
+
+  const nw = (p?: Networth) => (p ? networth(p) : 0);
+  const ni = (p?: Networth) => (p ? investment(p) : 0);
+  const periodInvestment = ni(end) - ni(before);
+
+  const flows = [{ date: before ? before.date : inRange[0].date, amount: -nw(before) }];
+  let prev = before;
+  _.each(inRange, (p) => {
+    flows.push({ date: p.date, amount: -(ni(p) - ni(prev)) });
+    prev = p;
+  });
+  flows.push({ date: end.date, amount: nw(end) });
+
+  return {
+    networth: nw(end),
+    investment: periodInvestment,
+    gain: nw(end) - nw(before) - periodInvestment,
+    xirr: xirrOf(flows)
+  } as PeriodStats;
+}
+
 export function renderNetworth(
   points: Networth[],
-  element: Element
+  element: Element,
+  options: { currencySymbol?: string; minWidth?: number } = {}
 ): { destroy: () => void; legends: Legend[] } {
+  const symbol = options.currencySymbol || "";
+  // the user's locale (e.g. lakh / crore grouping) applies to the default
+  // currency only
+  const locale = symbol ? "en-US" : undefined;
+  const fmt = (v: number) => symbol + formatCurrency(v, null, locale);
+  const fmtCrude = (v: number) => symbol + formatCurrencyCrudeWithLocale(v, locale);
   const start = _.min(_.map(points, (p) => p.date)),
     end = now();
 
@@ -35,7 +106,10 @@ export function renderNetworth(
 
   const right = isMobile() ? 10 : 80,
     margin = { top: 15, right: right, bottom: 20, left: 40 },
-    width = Math.max(element.parentElement.clientWidth, 800) - margin.left - margin.right,
+    width =
+      Math.max(element.parentElement.clientWidth, options.minWidth ?? 800) -
+      margin.left -
+      margin.right,
     height = +svg.attr("height") - margin.top - margin.bottom,
     g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
@@ -78,12 +152,10 @@ export function renderNetworth(
     g.append("g")
       .attr("class", "axis y")
       .attr("transform", `translate(${width},0)`)
-      .call(d3.axisRight(y).tickPadding(5).tickFormat(formatCurrencyCrude));
+      .call(d3.axisRight(y).tickPadding(5).tickFormat(fmtCrude));
   }
 
-  g.append("g")
-    .attr("class", "axis y")
-    .call(d3.axisLeft(y).tickSize(-width).tickFormat(formatCurrencyCrude));
+  g.append("g").attr("class", "axis y").call(d3.axisLeft(y).tickSize(-width).tickFormat(fmtCrude));
 
   const layer = g.selectAll(".layer").data([points]).enter().append("g").attr("class", "layer");
 
@@ -204,12 +276,9 @@ export function renderNetworth(
         placement: pointType == "networth" ? "top" : "bottom",
         content: tooltip([
           ["Date", d.date.format("DD MMM YYYY")],
-          ["Net Worth", [formatCurrency(networth(d)), "has-text-weight-bold has-text-right"]],
-          [
-            "Net Investment",
-            [formatCurrency(investment(d)), "has-text-weight-bold has-text-right"]
-          ],
-          ["Gain / Loss", [formatCurrency(d.gainAmount), "has-text-weight-bold has-text-right"]]
+          ["Net Worth", [fmt(networth(d)), "has-text-weight-bold has-text-right"]],
+          ["Net Investment", [fmt(investment(d)), "has-text-weight-bold has-text-right"]],
+          ["Gain / Loss", [fmt(d.gainAmount), "has-text-weight-bold has-text-right"]]
         ])
       });
       t.show();
@@ -223,22 +292,22 @@ export function renderNetworth(
     {
       label: "Net Worth",
       color: lineScale("networth"),
-      shape: "line"
+      shape: "line" as const
     },
     {
       label: "Net Investment",
       color: lineScale("investment"),
-      shape: "line"
+      shape: "line" as const
     },
     {
       label: "Gain",
       color: areaScale("gain"),
-      shape: "square"
+      shape: "square" as const
     },
     {
       label: "Loss",
       color: areaScale("loss"),
-      shape: "square"
+      shape: "square" as const
     }
   ];
 
