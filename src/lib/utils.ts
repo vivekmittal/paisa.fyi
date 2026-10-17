@@ -137,11 +137,21 @@ export interface Gain {
   postings: Posting[];
 }
 
+export interface CurrencyAccountGain {
+  name: string;
+  symbol: string;
+  commodity: string;
+  networthTimeline: Networth[];
+  xirr: number;
+  postings: Posting[];
+}
+
 export interface AccountGain {
   account: string;
   networthTimeline: Networth[];
   xirr: number;
   postings: Posting[];
+  currencies: CurrencyAccountGain[];
 }
 
 export interface InterestOverview {

@@ -7,6 +7,7 @@
   import BoxLabel from "$lib/components/BoxLabel.svelte";
   import LegendCard from "$lib/components/LegendCard.svelte";
   import NetworthCurrency from "$lib/components/NetworthCurrency.svelte";
+  import { selectedCurrency } from "../../../../persisted_store";
 
   let points: Networth[] = [];
   let currencyNetworths: {
@@ -15,6 +16,7 @@
     commodity: string;
     networthTimeline: Networth[];
   }[] = [];
+  $: selected = _.find(currencyNetworths, (c) => c.name === $selectedCurrency);
   let assetDistributions: AssetDistribution[] = [];
   let assetDistributionLegends: Legend[] = [];
   let assetDistributionRenderer: (data: AssetDistribution[]) => void;
@@ -39,16 +41,18 @@
   });
 </script>
 
-<NetworthCurrency name={USER_CONFIG.default_currency} {points} />
-
-{#each currencyNetworths as currency (currency.name)}
-  <NetworthCurrency
-    name={currency.name}
-    symbol={currency.symbol}
-    points={currency.networthTimeline}
-    emptyMessage="No prices found for commodity {currency.commodity}."
-  />
-{/each}
+{#key $selectedCurrency}
+  {#if selected}
+    <NetworthCurrency
+      name={selected.name}
+      symbol={selected.symbol}
+      points={selected.networthTimeline}
+      emptyMessage="No prices found for commodity {selected.commodity}."
+    />
+  {:else}
+    <NetworthCurrency name={USER_CONFIG.default_currency} {points} />
+  {/if}
+{/key}
 
 {#if !_.isEmpty(assetDistributions)}
   <section class="section tab-networth">

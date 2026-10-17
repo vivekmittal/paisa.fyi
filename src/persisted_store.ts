@@ -19,3 +19,6 @@ export function setCashflowDepthAllowed(expense: number, income: number) {
     cashflowIncomeDepth.set(income);
   }
 }
+
+// name of the selected networth currency, empty for the default currency
+export const selectedCurrency = persisted("selectedCurrency", "");

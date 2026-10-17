@@ -212,25 +212,13 @@ func computeCurrencyNetworths(db *gorm.DB, timeline []Networth) []CurrencyNetwor
 // movement.
 func computeConvertedNetworthTimeline(db *gorm.DB, commodity string, timeline []Networth) []Networth {
 	converted := []Networth{}
-	if len(timeline) == 0 || utils.IsCurrency(commodity) {
+	if len(timeline) == 0 {
 		return converted
 	}
 
-	rates := service.CurrencyRates(db, commodity)
-	if len(rates) == 0 {
+	rateAt := currencyRateFn(db, commodity)
+	if rateAt == nil {
 		return converted
-	}
-
-	// dates before the first known rate use the earliest rate
-	rateAt := func(date time.Time) decimal.Decimal {
-		rate := rates[0].Value
-		for _, r := range rates {
-			if r.Date.After(date) {
-				break
-			}
-			rate = r.Value
-		}
-		return rate
 	}
 
 	investment := decimal.Zero
@@ -257,4 +245,29 @@ func computeConvertedNetworthTimeline(db *gorm.DB, commodity string, timeline []
 		})
 	}
 	return converted
+}
+
+// currencyRateFn returns a lookup of the rate (default currency per unit of the
+// commodity) on a date, or nil when no price is available. Dates before the
+// first known rate use the earliest rate.
+func currencyRateFn(db *gorm.DB, commodity string) func(time.Time) decimal.Decimal {
+	if utils.IsCurrency(commodity) {
+		return nil
+	}
+
+	rates := service.CurrencyRates(db, commodity)
+	if len(rates) == 0 {
+		return nil
+	}
+
+	return func(date time.Time) decimal.Decimal {
+		rate := rates[0].Value
+		for _, r := range rates {
+			if r.Date.After(date) {
+				break
+			}
+			rate = r.Value
+		}
+		return rate
+	}
 }

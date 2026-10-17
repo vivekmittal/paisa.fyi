@@ -14,6 +14,7 @@
   import { onMount } from "svelte";
   import { get } from "svelte/store";
   import DateRange from "./DateRange.svelte";
+  import CurrencySelect from "./CurrencySelect.svelte";
   import ThemeSwitcher from "./ThemeSwitcher.svelte";
   import MonthPicker from "./MonthPicker.svelte";
   import Logo from "./Logo.svelte";
@@ -41,6 +42,7 @@
     help?: string;
     hide?: boolean;
     dateRangeSelector?: boolean;
+    currencySelector?: boolean;
     monthPicker?: boolean;
     financialYearPicker?: boolean;
     maxDepthSelector?: boolean;
@@ -85,9 +87,9 @@
       href: "/assets",
       children: [
         { label: "Balance", href: "/balance" },
-        { label: "Networth", href: "/networth", dateRangeSelector: true },
+        { label: "Networth", href: "/networth", dateRangeSelector: true, currencySelector: true },
         { label: "Investment", href: "/investment" },
-        { label: "Gain", href: "/gain" },
+        { label: "Gain", href: "/gain", currencySelector: true },
         { label: "Allocation", href: "/allocation", help: "allocation-targets" },
         { label: "Analysis", href: "/analysis", tag: "alpha", help: "analysis" }
       ]
@@ -413,6 +415,10 @@
       <div>
         <DateRange bind:value={$dateRangeOption} dateMin={$dateMin} dateMax={$dateMax} />
       </div>
+    {/if}
+
+    {#if selectedSubLink?.currencySelector || selectedLink?.currencySelector}
+      <CurrencySelect />
     {/if}
 
     {#if selectedSubLink?.monthPicker || selectedLink?.monthPicker}
