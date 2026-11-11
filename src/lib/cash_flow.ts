@@ -23,6 +23,9 @@ import COLORS, { generateColorScheme } from "./colors";
 import textures from "textures";
 import chroma from "chroma-js";
 
+// "Where did my income go?" One stacked bar per month shows what you did with
+// your money (spent, taxed, repaid loans, invested). A green tick marks income,
+// so the gap between the top of the bar and the tick is what you kept.
 export function renderMonthlyFlow(
   id: string,
   options = {
@@ -30,13 +33,13 @@ export function renderMonthlyFlow(
     balance: 0
   }
 ) {
-  const MAX_BAR_WIDTH = rem(20);
+  const MAX_BAR_WIDTH = rem(22);
   const svg = d3.select(id),
     margin = {
-      top: rem(15),
-      right: rem(30),
-      bottom: options.rotate ? rem(50) : rem(20),
-      left: rem(40)
+      top: rem(10),
+      right: rem(10),
+      bottom: options.rotate ? rem(50) : rem(22),
+      left: rem(42)
     },
     width =
       document.getElementById(id.substring(1)).parentElement.clientWidth -
@@ -45,32 +48,12 @@ export function renderMonthlyFlow(
     height = +svg.attr("height") - margin.top - margin.bottom,
     g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-  const texture = textures
-    .lines()
-    .strokeWidth(1)
-    .size(4)
-    .orientation("vertical")
-    .background(chroma(COLORS.expenses).brighten(1.5).hex())
-    .stroke(COLORS.expenses);
-  svg.call(texture);
+  const outflowKeys = ["expenses", "tax", "liabilities", "investment"];
+  const colors = [COLORS.expenses, COLORS.neutralBar, COLORS.liabilities, COLORS.assets];
 
-  const areaKeys = ["income", "expenses", "liabilities", "tax", "investment"];
-  const colors = [
-    COLORS.income,
-    COLORS.expenses,
-    COLORS.liabilities,
-    COLORS.expenses,
-    COLORS.assets
-  ];
-
-  const lineKeys = ["balance"];
-  const lineScale = d3.scaleOrdinal<string>().domain(lineKeys).range([COLORS.primary]);
-
-  const x = d3.scaleBand().range([0, width]).paddingInner(0.1),
+  const x = d3.scaleBand().range([0, width]).paddingInner(0.25).paddingOuter(0.1),
     y = d3.scaleLinear().range([height, 0]),
-    z = d3.scaleOrdinal<string>(colors).domain(areaKeys);
-
-  const x1 = d3.scaleBand().domain(["0", "1"]).paddingInner(0.1).paddingOuter(0.1);
+    z = d3.scaleOrdinal<string>(colors).domain(outflowKeys);
 
   const xAxis = g
     .append("g")
@@ -78,35 +61,27 @@ export function renderMonthlyFlow(
     .attr("transform", "translate(0," + height + ")");
 
   const yAxis = g.append("g").attr("class", "axis y");
-
   const groups = g.append("g");
-
-  const line = g
-    .append("path")
-    .attr("stroke", COLORS.primary)
-    .attr("stroke-width", "2px")
-    .attr("fill", "none");
-
+  const incomeTicks = g.append("g");
   const tooltipRects = g.append("g");
 
   let firstRender = true;
 
+  const outflow = (c: CashFlow) => ({
+    expenses: Math.max(c.expenses, 0),
+    tax: Math.max(c.tax, 0),
+    liabilities: c.liabilities < 0 ? -c.liabilities : 0,
+    investment: Math.max(c.investment, 0)
+  });
+
   const renderer = function (cashFlows: CashFlow[]) {
-    const positions = _.flatMap(cashFlows, (c) => [
-      c.income + (c.investment < 0 ? -c.investment : 0) + (c.liabilities > 0 ? c.liabilities : 0),
-      c.expenses +
-        c.tax +
-        (c.investment > 0 ? c.investment : 0) +
-        (c.liabilities < 0 ? -c.liabilities : 0),
-      c.balance
-    ]);
-    positions.push(0);
+    const key = (c: CashFlow) => c.date.format("MMM YYYY");
+    const tops = _.flatMap(cashFlows, (c) => [c.income, _.sum(_.values(outflow(c)))]);
 
-    x.domain(_.map(cashFlows, (c) => c.date.format("MMM YYYY")));
-    y.domain(d3.extent(positions));
-    x1.range([0, x.bandwidth()]);
+    x.domain(_.map(cashFlows, key));
+    y.domain([0, d3.max(tops) || 1]).nice();
 
-    const t = svg.transition().duration(firstRender ? 0 : 750);
+    const t = svg.transition().duration(firstRender ? 0 : 600);
     firstRender = false;
 
     const axis = xAxis
@@ -114,8 +89,8 @@ export function renderMonthlyFlow(
       .call(
         d3
           .axisBottom(x)
-          .ticks(5)
-          .tickFormat(skipTicks(30, x, (d) => d.toString()))
+          .tickSize(0)
+          .tickFormat(skipTicks(rem(52), x, (d) => d.toString()))
       )
       .selectAll("text")
       .attr("y", 10)
@@ -126,102 +101,45 @@ export function renderMonthlyFlow(
       axis.attr("transform", "rotate(-45)").style("text-anchor", "end");
     }
 
-    yAxis.transition(t).call(d3.axisLeft(y).tickSize(-width).tickFormat(formatCurrencyCrude));
+    yAxis
+      .transition(t)
+      .call(d3.axisLeft(y).ticks(5).tickSize(-width).tickFormat(formatCurrencyCrude));
+
+    const barWidth = Math.min(x.bandwidth(), MAX_BAR_WIDTH);
+    const barX = (c: CashFlow) => x(key(c)) + (x.bandwidth() - barWidth) / 2;
 
     const gbars = groups
-      .selectAll("g.group")
-      .data(cashFlows, (d: any) => d.date.format("MMM YYYY"))
-      .join(
-        (enter) =>
-          enter
-            .append("g")
-            .attr("class", "group")
-            .attr("transform", (c) => `translate(${x(c.date.format("MMM YYYY"))},0)`),
-        (update) =>
-          update
-            .transition(t)
-            .attr("transform", (c) => `translate(${x(c.date.format("MMM YYYY"))},0)`),
-        (exit) => exit.remove()
-      );
+      .selectAll<SVGGElement, CashFlow>("g.group")
+      .data(cashFlows, (d: any) => key(d))
+      .join("g")
+      .attr("class", "group");
 
     gbars
-      .selectAll("g")
-      .data((c) => [
-        d3.stack().keys(["income", "liabilities", "investment"])([
-          {
-            i: "0",
-            data: c,
-            income: c.income,
-            liabilities: c.liabilities > 0 ? c.liabilities : 0,
-            investment: c.investment < 0 ? -c.investment : 0
-          }
-        ] as any),
-        d3.stack().keys(["expenses", "tax", "investment", "liabilities"])([
-          {
-            i: "1",
-            data: c,
-            expenses: c.expenses,
-            tax: c.tax,
-            investment: c.investment > 0 ? c.investment : 0,
-            liabilities: c.liabilities < 0 ? -c.liabilities : 0
-          }
-        ] as any)
-      ])
-      .join("g")
       .selectAll("rect")
-      .data((d) => {
-        return d;
+      .data((c) => {
+        const stack = d3.stack().keys(outflowKeys)([outflow(c)] as any);
+        return stack.map((layer) => ({ layer, c }));
       })
-      .join(
-        (enter) =>
-          enter
-            .append("rect")
-            .attr("fill", (d) => {
-              if (d.key === "tax") {
-                return texture.url();
-              }
-              return z(d.key);
-            })
-            .attr("fill-opacity", 0.6)
-            .attr("x", (d: any) =>
-              d[0].data.i === "0"
-                ? x1(d[0].data.i) + x1.bandwidth() - Math.min(x1.bandwidth(), MAX_BAR_WIDTH)
-                : x1(d[0].data.i)
-            )
-            .attr("width", Math.min(x1.bandwidth(), MAX_BAR_WIDTH))
-            .attr("y", y.range()[0])
-            .transition(t)
-            .attr("y", (d: any) => y(d[0][1]))
-            .attr("height", (d: any) => y(d[0][0]) - y(d[0][1])),
-        (update) =>
-          update
-            .transition(t)
-            .attr("fill", (d) => {
-              if (d.key === "tax") {
-                return texture.url();
-              }
-              return z(d.key);
-            })
+      .join("rect")
+      .attr("fill", (d) => z(d.layer.key))
+      .attr("fill-opacity", 0.9)
+      .attr("x", (d) => barX(d.c))
+      .attr("width", barWidth)
+      .transition(t)
+      .attr("y", (d) => y(d.layer[0][1]))
+      .attr("height", (d) => Math.max(0, y(d.layer[0][0]) - y(d.layer[0][1])));
 
-            .attr("x", (d: any) =>
-              d[0].data.i === "0"
-                ? x1(d[0].data.i) + x1.bandwidth() - Math.min(x1.bandwidth(), MAX_BAR_WIDTH)
-                : x1(d[0].data.i)
-            )
-            .attr("y", (d: any) => y(d[0][1]))
-            .attr("height", (d: any) => y(d[0][0]) - y(d[0][1]))
-            .attr("width", Math.min(x1.bandwidth(), MAX_BAR_WIDTH)),
-        (exit) => exit.remove()
-      );
-
-    line.attr(
-      "d",
-      d3
-        .line<CashFlow>()
-        .curve(d3.curveMonotoneX)
-        .x((c) => x(c.date.format("MMM YYYY")) + x.bandwidth() / 2)
-        .y((c) => y(c.balance))(cashFlows)
-    );
+    incomeTicks
+      .selectAll("line")
+      .data(cashFlows)
+      .join("line")
+      .attr("stroke", COLORS.income)
+      .attr("stroke-width", 3)
+      .attr("stroke-linecap", "round")
+      .attr("x1", (c) => barX(c) - 3)
+      .attr("x2", (c) => barX(c) + barWidth + 3)
+      .attr("y1", (c) => y(c.income))
+      .attr("y2", (c) => y(c.income));
 
     tooltipRects
       .selectAll("rect")
@@ -229,44 +147,34 @@ export function renderMonthlyFlow(
       .join("rect")
       .attr("fill", "transparent")
       .attr("data-tippy-content", (c: CashFlow) => {
+        const o = outflow(c);
+        const kept = c.income - _.sum(_.values(o));
+        const right = "has-text-weight-bold has-text-right";
         return tooltip(
           [
-            ["Income", [formatCurrency(c.income), "has-text-weight-bold has-text-right"]],
-            ["Liabilities", [formatCurrency(c.liabilities), "has-text-weight-bold has-text-right"]],
-            ["Expenses", [formatCurrency(c.expenses), "has-text-weight-bold has-text-right"]],
-            ["Tax", [formatCurrency(c.tax), "has-text-weight-bold has-text-right"]],
-            ["Investment", [formatCurrency(c.investment), "has-text-weight-bold has-text-right"]],
-            ["Checking", [formatCurrency(c.checking), "has-text-weight-bold has-text-right"]],
-            ["Checking Balance", [formatCurrency(c.balance), "has-text-weight-bold has-text-right"]]
+            ["Income", [formatCurrency(c.income), right]],
+            ["Expenses", [formatCurrency(o.expenses), right]],
+            ["Tax", [formatCurrency(o.tax), right]],
+            ["Loan repayment", [formatCurrency(o.liabilities), right]],
+            ["Invested", [formatCurrency(o.investment), right]],
+            ["Left over", [formatCurrency(kept), right]]
           ],
           { header: c.date.format("MMM YYYY") }
         );
       })
-      .attr("x", (c) => x(c.date.format("MMM YYYY")))
+      .attr("x", (c) => x(key(c)) - (x.step() - x.bandwidth()) / 2)
       .attr("y", 0)
       .attr("height", height)
-      .attr("width", x.bandwidth());
+      .attr("width", x.step());
   };
 
-  const legends: Legend[] = _.map(_.without(areaKeys, "tax"), (k) => ({
-    label: k,
-    color: z(k),
-    shape: "square"
-  }));
-
-  legends.push({
-    label: "tax",
-    color: z("tax"),
-    shape: "square",
-    texture: texture
-  });
-
-  legends.unshift({
-    label:
-      "Checking Balance\n" + (options.balance > 0 ? " " + formatCurrency(options.balance) : ""),
-    color: lineScale("balance"),
-    shape: "line"
-  });
+  const legends: Legend[] = [
+    { label: "Income", color: COLORS.income, shape: "line" },
+    { label: "Expenses", color: z("expenses"), shape: "square" },
+    { label: "Tax", color: z("tax"), shape: "square" },
+    { label: "Loan repayment", color: z("liabilities"), shape: "square" },
+    { label: "Invested", color: z("investment"), shape: "square" }
+  ];
 
   return { renderer, legends };
 }

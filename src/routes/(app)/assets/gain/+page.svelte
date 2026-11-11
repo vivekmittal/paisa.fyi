@@ -2,7 +2,7 @@
   import BoxLabel from "$lib/components/BoxLabel.svelte";
   import LegendCard from "$lib/components/LegendCard.svelte";
   import { buildLegends, renderOverview } from "$lib/gain";
-  import { ajax, type Legend } from "$lib/utils";
+  import { ajax, isMobile, type Legend } from "$lib/utils";
   import _ from "lodash";
   import { onMount } from "svelte";
 
@@ -12,6 +12,12 @@
     const { gain_breakdown: gains } = await ajax("/api/gain");
 
     legends = buildLegends();
+    if (isMobile()) {
+      // the phone chart shows what you put in, plus what it earned or lost
+      legends = _.filter(legends, (l) =>
+        _.includes(["investment", "gain", "loss"], l.label.toLowerCase())
+      );
+    }
     renderOverview(gains);
   });
 </script>

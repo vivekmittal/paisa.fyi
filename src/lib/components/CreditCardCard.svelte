@@ -70,7 +70,7 @@
           <span class="has-text-grey">Amount Due</span>
         </div>
         <div>
-          <span class="is-size-4 has-text-grey-dark">{formatCurrency(bill.closingBalance)}</span>
+          <span class="stat-value">{formatCurrency(bill.closingBalance)}</span>
         </div>
         <div class="is-size-7 has-text-grey">
           <DueDate dueDate={bill.dueDate} paidDate={bill.paidDate} />
@@ -82,7 +82,7 @@
         <span class="has-text-grey">Balance</span>
       </div>
       <div class="flex flex-col">
-        <span class="is-size-4 has-text-grey-dark">{formatCurrency(creditCard.balance)}</span>
+        <span class="stat-value">{formatCurrency(creditCard.balance)}</span>
         <span class="is-size-7 has-text-grey"
           >{formatPercentage(creditCard.balance / creditCard.creditLimit)} of {formatCurrency(
             creditCard.creditLimit

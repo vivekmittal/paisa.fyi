@@ -118,7 +118,7 @@
 
 <section class="section tab-expense">
   <div class="container is-fluid">
-    <div class="columns is-flex-wrap-wrap">
+    <div class="columns is-flex-wrap-wrap txns-last">
       <div class="column is-3">
         <div class="columns is-flex-wrap-wrap">
           <div class="column is-full">
@@ -162,7 +162,7 @@
               </nav>
             </div>
           </div>
-          <div class="column is-full">
+          <div class="column is-full posting-col">
             {#each current_month_expenses as expense}
               <PostingCard posting={expense} color={z(secondName(expense.account))} icon={true} />
             {/each}

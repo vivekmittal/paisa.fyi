@@ -149,6 +149,28 @@
     _.last(links).children.push(tax);
   }
 
+  const tabs = [
+    { label: "Home", href: "/", icon: "fa-house", match: (p: string) => p == "/" },
+    {
+      label: "Assets",
+      href: "/assets/networth",
+      icon: "fa-chart-line",
+      match: (p: string) => p.startsWith("/assets")
+    },
+    {
+      label: "Cash flow",
+      href: "/cash_flow/monthly",
+      icon: "fa-arrow-right-arrow-left",
+      match: (p: string) => p.startsWith("/cash_flow")
+    },
+    {
+      label: "Spend",
+      href: "/expense/monthly",
+      icon: "fa-wallet",
+      match: (p: string) => p.startsWith("/expense")
+    }
+  ];
+
   const about = { label: "About", href: "/about" };
   _.last(links).children.push(about);
 
@@ -188,7 +210,7 @@
   }
 </script>
 
-<nav class="navbar px-2 is-transparent" aria-label="main navigation">
+<nav class="navbar is-transparent" aria-label="main navigation">
   <div class="navbar-brand">
     <a
       href="/"
@@ -312,13 +334,13 @@
   </div>
 </nav>
 
-<div class="mt-3 px-3 is-flex is-justify-content-space-between">
-  {#if selectedLink}
-    <nav
-      style="margin-left: 0.73rem;"
-      class="breadcrumb has-chevron-separator mb-0 is-small"
-      aria-label="breadcrumbs"
-    >
+<div
+  class="mt-2 is-flex is-justify-content-space-between is-flex-wrap-wrap subheader"
+  class:is-hidden={normalizedPath == "/"}
+  style="gap: 8px"
+>
+  {#if selectedLink && normalizedPath != "/"}
+    <nav class="breadcrumb has-chevron-separator mb-0 is-small" aria-label="breadcrumbs">
       <ul>
         <li>
           <a class="is-inactive">{selectedLink.label}</a>
@@ -371,7 +393,7 @@
     </nav>
   {/if}
 
-  <div class="mr-3 is-flex" style="gap: 12px">
+  <div class="is-flex is-flex-wrap-wrap is-align-items-center" style="gap: 12px">
     {#if selectedSubLink?.recurringIcons}
       <div class="flex gap-5 items-center has-text-grey">
         {#each RecurringIcons as icon}
@@ -437,6 +459,28 @@
       </div>
     {/if}
   </div>
+</div>
+
+<div class="bottom-nav" aria-label="primary">
+  {#each tabs as tab}
+    <a
+      href={tab.href}
+      class:is-active={tab.match(normalizedPath)}
+      on:click={() => (isBurger = null)}
+    >
+      <i class="fas {tab.icon}" />
+      <span>{tab.label}</span>
+    </a>
+  {/each}
+  <a
+    href="#menu"
+    role="button"
+    class:is-active={isBurger === true}
+    on:click|preventDefault={() => (isBurger = !isBurger)}
+  >
+    <i class="fas fa-bars" />
+    <span>Menu</span>
+  </a>
 </div>
 
 <style lang="scss">

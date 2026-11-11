@@ -299,26 +299,27 @@ const MaterialUI = {
 };
 
 const COLORS = {
-  gain: "#b2df8a",
-  gainText: "#48c78e",
-  loss: "#fb9a99",
-  lossText: "#f14668",
-  danger: "#cc0f35",
-  success: "#257953",
-  warn: "#ffe08a",
-  warnText: "#946c00",
+  gain: "#86d19a",
+  gainText: "#16a34a",
+  loss: "#f2a0a0",
+  lossText: "#dc2626",
+  danger: "#b91c1c",
+  success: "#15803d",
+  warn: "#fde68a",
+  warnText: "#92400e",
   diff: "#4a4a4a",
 
   // accounts
-  primary: MaterialUI.deeppurple.a100,
-  secondary: MaterialUI.lightblue.a400,
-  tertiary: MaterialUI.amber.a400,
+  primary: "#3b82f6",
+  secondary: "#14b8a6",
+  tertiary: "#f59e0b",
   neutral: "hsl(0, 0%, 48%)",
-  assets: MaterialUI.lightblue.a400,
-  expenses: MaterialUI.red.a400,
-  income: MaterialUI.lime.a700,
-  liabilities: MaterialUI.amber.a700,
-  equity: MaterialUI.purple.a400
+  neutralBar: "#94a3b8",
+  assets: "#3b82f6",
+  expenses: "#ef4444",
+  income: "#22c55e",
+  liabilities: "#f59e0b",
+  equity: "#8b5cf6"
 };
 export default COLORS;
 
@@ -395,7 +396,11 @@ export function generateColorScheme(domain: string[]) {
         .scaleSequential()
         .domain([0, n - 1])
         .interpolator(d3.interpolateSinebow);
-      colors = _.map(_.range(0, n), (n) => chroma(z(n)).desaturate(1.5).hex());
+      // Same hue spread as before, but calm: fixed saturation and lightness so
+      // large treemaps do not look neon.
+      colors = _.map(_.range(0, n), (i) =>
+        chroma(z(i)).set("hsl.s", 0.38).set("hsl.l", 0.56).hex()
+      );
     }
   }
 

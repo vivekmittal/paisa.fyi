@@ -1,6 +1,6 @@
 import * as d3 from "d3";
 import _ from "lodash";
-import { formatCurrency, type AssetDistribution, type Legend } from "./utils";
+import { formatCurrency, formatCurrencyCrude, type AssetDistribution, type Legend } from "./utils";
 import { generateColorScheme } from "./colors";
 
 export function pieData(distributions: AssetDistribution[]) {
@@ -58,7 +58,7 @@ export function renderAssetDistribution(
 
         const arc = d3
             .arc<d3.PieArcDatum<AssetDistribution>>()
-            .innerRadius(0)
+            .innerRadius(radius * 0.62)
             .outerRadius(radius);
 
         const pieDataResult = pieData(data);
@@ -71,6 +71,8 @@ export function renderAssetDistribution(
             .append("path")
             .attr("fill", (d) => colorScale(d.data.category))
             .attr("d", arc)
+            .attr("stroke", "var(--chart-gap, #fff)")
+            .attr("stroke-width", 2)
             .attr("data-tippy-content", tooltipContent)
             .style("cursor", "pointer");
 
@@ -86,10 +88,9 @@ export function renderAssetDistribution(
             })
             .attr("text-anchor", "middle")
             .attr("dominant-baseline", "middle")
-            .attr("font-size", "16px")
-            .attr("font-weight", "bold")
+            .attr("font-size", "12px")
+            .attr("font-weight", "600")
             .attr("fill", "#ffffff")
-            .style("text-shadow", "1px 1px 2px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.8), 1px -1px 2px rgba(0,0,0,0.8), -1px 1px 2px rgba(0,0,0,0.8)")
             .style("pointer-events", "none")
             .text((d) => {
                 // Only show label if slice is large enough
@@ -98,6 +99,21 @@ export function renderAssetDistribution(
                 }
                 return "";
             });
+
+        const total = _.sumBy(data, (d) => d.amount);
+        g.append("text")
+            .attr("text-anchor", "middle")
+            .attr("y", -6)
+            .attr("class", "svg-text-grey")
+            .attr("font-size", "11px")
+            .text("Total");
+        g.append("text")
+            .attr("text-anchor", "middle")
+            .attr("y", 14)
+            .attr("class", "svg-text-black-bis")
+            .attr("font-size", "16px")
+            .attr("font-weight", "700")
+            .text(formatCurrencyCrude(total));
     };
 
     // Generate legends

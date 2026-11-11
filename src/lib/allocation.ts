@@ -2,6 +2,8 @@ import * as d3 from "d3";
 import type dayjs from "dayjs";
 import _ from "lodash";
 import {
+  contentWidth,
+  isMobile,
   type Aggregate,
   type AllocationTarget,
   formatCurrency,
@@ -60,10 +62,19 @@ export function renderAllocationTarget(
     };
   });
 
+  const mobile = isMobile();
   const BAR_HEIGHT = rem(25);
   const svg = d3.select(id),
-    margin = { top: rem(20), right: rem(20), bottom: rem(10), left: rem(150) },
-    fullWidth = Math.max(document.getElementById(id.substring(1)).parentElement.clientWidth, 1000),
+    margin = {
+      top: rem(20),
+      right: mobile ? rem(5) : rem(20),
+      bottom: rem(10),
+      left: mobile ? rem(85) : rem(150)
+    },
+    // On a phone fit the card; on desktop keep a 1000px minimum (it scrolls if narrower)
+    fullWidth = mobile
+      ? contentWidth(document.getElementById(id.substring(1)).parentElement)
+      : Math.max(document.getElementById(id.substring(1)).parentElement.clientWidth, 1000),
     width = fullWidth - margin.left - margin.right,
     height = rows.length * BAR_HEIGHT * 2,
     g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
@@ -98,10 +109,11 @@ export function renderAllocationTarget(
       .flatMap((t) => [t.displayCurrent, t.displayTarget])
       .max()
       .value() || 100;
-  const targetWidth = rem(400);
-  const targetMargin = rem(20);
-  const textGroupWidth = rem(150);
+  const targetMargin = mobile ? rem(8) : rem(20);
+  const textGroupWidth = mobile ? rem(105) : rem(150);
   const textGroupMargin = rem(20);
+  const targetWidth = mobile ? width - targetMargin - textGroupWidth : rem(400);
+  const numberText = (v: number) => formatFloat(v, mobile ? 0 : 2);
   const textGroupZero = targetWidth + targetMargin;
 
   const x = d3.scaleLinear().range([textGroupZero + textGroupWidth + textGroupMargin, width]);
@@ -117,7 +129,7 @@ export function renderAllocationTarget(
 
   g.append("text")
     .classed("svg-text-grey", true)
-    .text("Target")
+    .text(mobile ? "Tgt" : "Target")
     .attr("text-anchor", "end")
 
     .attr("x", textGroupZero + (textGroupWidth * 1) / 3)
@@ -125,7 +137,7 @@ export function renderAllocationTarget(
 
   g.append("text")
     .classed("svg-text-grey", true)
-    .text("Current")
+    .text(mobile ? "Cur" : "Current")
     .attr("text-anchor", "end")
     .attr("x", textGroupZero + (textGroupWidth * 2) / 3)
     .attr("y", -5);
@@ -174,7 +186,7 @@ export function renderAllocationTarget(
 
   textGroup
     .append("text")
-    .text((t) => (t.disabled ? "—" : formatFloat(t.displayTarget)))
+    .text((t) => (t.disabled ? "—" : numberText(t.displayTarget)))
     .attr("text-anchor", "end")
     .attr("dominant-baseline", "middle")
     .style("fill", (t) => (t.disabled ? "#999" : z("target")))
@@ -184,7 +196,7 @@ export function renderAllocationTarget(
 
   textGroup
     .append("text")
-    .text((t) => (t.disabled ? "—" : formatFloat(t.displayCurrent)))
+    .text((t) => (t.disabled ? "—" : numberText(t.displayCurrent)))
     .attr("text-anchor", "end")
     .attr("dominant-baseline", "middle")
     .style("fill", (t) => (t.disabled ? "#999" : z("current")))
@@ -194,7 +206,7 @@ export function renderAllocationTarget(
 
   textGroup
     .append("text")
-    .text((t) => (t.disabled ? "—" : formatFloat(t.displayCurrent - t.displayTarget)))
+    .text((t) => (t.disabled ? "—" : numberText(t.displayCurrent - t.displayTarget)))
     .attr("text-anchor", "end")
     .attr("dominant-baseline", "middle")
     .style("fill", (t) =>
@@ -243,6 +255,11 @@ export function renderAllocationTarget(
     .attr("points", "0 0, 0 15, 20 6")
     .attr("fill", z("target"));
 
+  // The per-target treemap strip needs width a phone does not have.
+  if (mobile) {
+    return;
+  }
+
   const paddingTop = (y1.range()[1] - y1.bandwidth() * 2) / 2;
   d3.select("#d3-allocation-target-treemap")
     .append("div")
@@ -286,7 +303,7 @@ function renderPartition(
   aggregates: Record<string, Aggregate>,
   hierarchy: any,
   color: d3.ScaleOrdinal<string, string>,
-  options = { margin: { top: 0, right: 20, bottom: 0, left: 0 } }
+  options = { margin: { top: 0, right: 0, bottom: 0, left: 0 } }
 ) {
   if (_.isEmpty(aggregates)) {
     return;
@@ -294,7 +311,7 @@ function renderPartition(
 
   const div = d3.select(element),
     margin = options.margin,
-    width = element.parentElement.clientWidth - margin.left - margin.right,
+    width = contentWidth(element.parentElement) - margin.left - margin.right,
     height = +div.style("height").replace("px", "") - margin.top - margin.bottom;
 
   const percent = (d: d3.HierarchyNode<Aggregate>) => {

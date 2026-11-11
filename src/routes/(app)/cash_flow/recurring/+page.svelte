@@ -9,6 +9,7 @@
     helpUrl,
     isMobile,
     monthDays,
+    now,
     type TransactionSchedule,
     type TransactionSequence
   } from "$lib/utils";
@@ -35,6 +36,15 @@
       .groupBy((s) => s.scheduled.format("YYYY-MM-DD"))
       .value();
   }
+
+  // On a phone a month of empty day cards is just scrolling: show only days that have
+  // something due, plus today.
+  $: visibleDays = isMobile()
+    ? _.filter(
+        days,
+        (d) => !_.isEmpty(schedulesByDate[d.format("YYYY-MM-DD")]) || d.isSame(now(), "day")
+      )
+    : days;
 
   onMount(async () => {
     ({ transaction_sequences: transactionSequences } = await ajax("/api/recurring"));
@@ -70,7 +80,7 @@
           class="grid grid-cols-1 md:grid-cols-7 gap-2 auto-cols-[1fr] auto-rows-[1fr] overflow-y-auto pb-1"
           style={isMobile() ? "" : "height: calc(100vh - 150px);"}
         >
-          {#each days as day (day)}
+          {#each visibleDays as day (day)}
             <RecurringDay
               month={$month}
               {day}

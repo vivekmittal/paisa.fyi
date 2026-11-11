@@ -41,7 +41,7 @@
   }
 </script>
 
-<div class="flex justify-start gap-0 {clazz}">
+<div class="flex flex-wrap justify-start gap-0 {clazz}">
   {#each legends as legend}
     <div
       class="flex flex-col p-1.5 gap-2 legend-box {legend.onClick && 'cursor-pointer'}"

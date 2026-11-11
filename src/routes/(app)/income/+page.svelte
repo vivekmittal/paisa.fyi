@@ -47,10 +47,15 @@
 </script>
 
 <section class="section tab-income">
-  <div class="container">
-    <nav class="level">
-      <LevelItem title="Gross Income" value={formatCurrency(grossIncome)} color={COLORS.gainText} />
-      <LevelItem title="Net Tax" value={formatCurrency(netTax)} color={COLORS.lossText} />
+  <div class="container is-fluid">
+    <nav class="level is-justify-content-flex-start" style="gap: 3rem">
+      <LevelItem
+        narrow
+        title="Gross Income"
+        value={formatCurrency(grossIncome)}
+        color={COLORS.gainText}
+      />
+      <LevelItem narrow title="Net Tax" value={formatCurrency(netTax)} color={COLORS.lossText} />
     </nav>
   </div>
 </section>

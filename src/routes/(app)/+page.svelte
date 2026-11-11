@@ -1,62 +1,55 @@
 <script lang="ts">
-  import * as cashFlow from "$lib/cash_flow";
   import COLORS from "$lib/colors";
-  import LastNMonths from "$lib/components/LastNMonths.svelte";
-  import TransactionCard from "$lib/components/TransactionCard.svelte";
-  import * as expense from "$lib/expense/monthly";
-  import { enrichTrantionSequence, sortTrantionSequence } from "$lib/transaction_sequence";
+  import { iconGlyph } from "$lib/icon";
+  import {
+    nextUnpaidSchedule,
+    totalRecurring,
+    enrichTrantionSequence,
+    sortTrantionSequence
+  } from "$lib/transaction_sequence";
   import {
     ajax,
     formatCurrency,
+    formatCurrencyCrude,
     formatFloat,
-    type Budget,
+    formatPercentage,
+    now,
+    type AllocationTarget,
     type CashFlow,
+    type GoalSummary,
+    type Issue,
     type Networth,
     type Posting,
     type Transaction,
-    type TransactionSequence,
-    type Legend,
-    now,
-    type GoalSummary,
-    type AssetBreakdown
+    type TransactionSequence
   } from "$lib/utils";
+  import dayjs from "dayjs";
   import _ from "lodash";
   import { onMount } from "svelte";
-
-  import BudgetCard from "$lib/components/BudgetCard.svelte";
-  import LevelItem from "$lib/components/LevelItem.svelte";
   import ZeroState from "$lib/components/ZeroState.svelte";
-  import { MasonryGrid } from "@egjs/svelte-grid";
   import { refresh } from "../../store";
-  import UpcomingCard from "$lib/components/UpcomingCard.svelte";
-  import GoalSummaryCard from "$lib/components/GoalSummaryCard.svelte";
-  import LegendCard from "$lib/components/LegendCard.svelte";
-  import BalanceCard from "$lib/components/BalanceCard.svelte";
 
-  let UntypedMasonryGrid = MasonryGrid as any;
+  const month = now().format("YYYY-MM");
+  const PERIODS = [
+    { key: "1M", months: 1 },
+    { key: "3M", months: 3 },
+    { key: "1Y", months: 12 },
+    { key: "All", months: 0 }
+  ];
 
-  let cashflowLegends: Legend[] = [];
-  let month = now().format("YYYY-MM");
-  let goalSummaries: GoalSummary[] = [];
-  let transactionSequences: TransactionSequence[] = [];
-  let cashFlows: CashFlow[] = [];
-  let expenses: { [key: string]: Posting[] } = {};
-  let xirr = 0;
-  let networth: Networth;
-  let renderer: (data: Posting[]) => void;
-  let totalExpense = 0;
-  let transactions: Transaction[] = [];
-  let budgetsByMonth: Record<string, Budget> = {};
-  let currentBudget: Budget;
-  let selectedExpenses: Posting[] = [];
   let isEmpty = false;
-  let checkingBalances: Record<string, AssetBreakdown> = {};
-
-  $: if (renderer) {
-    selectedExpenses = expenses[month] || [];
-    renderer(selectedExpenses);
-    totalExpense = _.sumBy(selectedExpenses, (p) => p.amount);
-  }
+  let loaded = false;
+  let period = "1Y";
+  let networth: Networth;
+  let xirr = 0;
+  let timeline: Networth[] = [];
+  let allocation: AllocationTarget[] = [];
+  let issues: Issue[] = [];
+  let cashFlows: CashFlow[] = [];
+  let expenses: Record<string, Posting[]> = {};
+  let goals: GoalSummary[] = [];
+  let sequences: TransactionSequence[] = [];
+  let transactions: Transaction[] = [];
 
   async function initDemo() {
     await ajax("/api/init", { method: "POST" });
@@ -64,44 +57,173 @@
   }
 
   onMount(async () => {
-    ({
-      expenses,
-      cashFlows,
-      goalSummaries,
-      budget: { budgetsByMonth },
-      transactionSequences,
-      networth: { networth, xirr },
-      checkingBalances: { asset_breakdowns: checkingBalances },
-      transactions
-    } = await ajax("/api/dashboard"));
+    const [dashboard, nw, alloc, diagnosis] = await Promise.all([
+      ajax("/api/dashboard"),
+      ajax("/api/networth"),
+      ajax("/api/allocation").catch(() => null),
+      ajax("/api/diagnosis").catch(() => null)
+    ]);
 
-    goalSummaries = _.sortBy(goalSummaries, (g) => -g.priority);
-
-    if (_.isEmpty(transactions)) {
-      isEmpty = true;
-    } else {
-      isEmpty = false;
-    }
-
-    const postings = _.chain(expenses).values().flatten().value();
-    const z = expense.colorScale(postings);
-    renderer = expense.renderCurrentExpensesBreakdown(z);
-    currentBudget = budgetsByMonth[month];
-
-    const { renderer: cashflowRenderer, legends } = cashFlow.renderMonthlyFlow(
-      "#d3-current-cash-flow",
-      {
-        rotate: false,
-        balance: _.last(cashFlows)?.balance || 0
-      }
-    );
-    cashflowRenderer(cashFlows);
-    cashflowLegends = legends;
-    transactionSequences = _.take(
-      sortTrantionSequence(enrichTrantionSequence(transactionSequences)),
-      16
-    );
+    networth = dashboard.networth.networth;
+    xirr = dashboard.networth.xirr;
+    cashFlows = dashboard.cashFlows;
+    expenses = dashboard.expenses;
+    goals = _.sortBy(dashboard.goalSummaries, (g) => -g.priority);
+    sequences = sortTrantionSequence(enrichTrantionSequence(dashboard.transactionSequences));
+    transactions = dashboard.transactions;
+    timeline = nw.networthTimeline || [];
+    allocation = alloc?.allocation_targets || [];
+    issues = diagnosis?.issues || [];
+    isEmpty = _.isEmpty(transactions);
+    loaded = true;
   });
+
+  // ---- net worth over the selected period -------------------------------
+  $: windowed = periodPoints(timeline, period);
+  $: first = _.first(windowed);
+  $: last = _.last(windowed);
+  $: change = first && last ? last.balanceAmount - first.balanceAmount : 0;
+  $: added = first && last ? last.netInvestmentAmount - first.netInvestmentAmount : 0;
+  $: marketGain = change - added;
+  $: changePct = first && first.balanceAmount > 0 ? (change / first.balanceAmount) * 100 : null;
+  $: chart = sparkline(windowed);
+  $: gainPercent =
+    networth && networth.netInvestmentAmount > 0
+      ? (networth.gainAmount / networth.netInvestmentAmount) * 100
+      : null;
+
+  function periodPoints(points: Networth[], key: string) {
+    const months = _.find(PERIODS, (p) => p.key == key).months;
+    if (months == 0) return points;
+    const cutoff = now().subtract(months, "month");
+    const w = _.filter(points, (p) => !p.date.isBefore(cutoff));
+    return w.length > 1 ? w : points;
+  }
+
+  function sparkline(points: Networth[]) {
+    if (points.length < 2) return null;
+    const step = Math.max(1, Math.floor(points.length / 240));
+    const pts = _.filter(points, (_p, i) => i % step == 0 || i == points.length - 1);
+    const values = _.flatMap(pts, (p) => [p.balanceAmount, p.netInvestmentAmount]);
+    const lo = _.min(values);
+    const hi = _.max(values);
+    const span = hi - lo || 1;
+    const W = 600;
+    const H = 120;
+    const x = (i: number) => (i / (pts.length - 1)) * W;
+    const y = (v: number) => H - 6 - ((v - lo) / span) * (H - 12);
+    const line = (f: (p: Networth) => number) =>
+      _.map(pts, (p, i) => `${i == 0 ? "M" : "L"}${x(i).toFixed(1)},${y(f(p)).toFixed(1)}`).join(
+        " "
+      );
+    const worth = line((p) => p.balanceAmount);
+    return {
+      worth,
+      invested: line((p) => p.netInvestmentAmount),
+      area: `${worth} L${W},${H} L0,${H} Z`
+    };
+  }
+
+  // Show the targets that are furthest off first; keep the card a fixed, compact size
+  $: allocationRows = _.take(
+    _.orderBy(allocation, (t) => Math.abs(t.current - t.target), "desc"),
+    6
+  );
+  $: allocMax = _.max(_.flatMap(allocationRows, (t) => [t.current, t.target])) || 1;
+
+  // ---- this month ---------------------------------------------------------
+  $: monthExpenses = expenses[month] || [];
+  $: spent = _.sumBy(monthExpenses, (p) => p.amount);
+  $: thisMonth = _.find(cashFlows, (c) => c.date.format("YYYY-MM") == month) || _.last(cashFlows);
+  $: income = thisMonth ? thisMonth.income : 0;
+  $: savingsRate =
+    income > 0
+      ? ((income - Math.abs(thisMonth.expenses) - Math.abs(thisMonth.tax)) / income) * 100
+      : null;
+  $: topCategories = _.chain(monthExpenses)
+    .groupBy((p) => p.account.split(":")[1] || p.account)
+    .map((ps, name) => ({ name, actual: _.sumBy(ps, (p) => p.amount) }))
+    .orderBy((r) => r.actual, "desc")
+    .take(6)
+    .value();
+  $: spendRows = topCategories;
+  $: maxSpend = _.max(_.map(spendRows, (r) => r.actual)) || 1;
+  $: flowMax = _.max(_.flatMap(cashFlows, (c) => [c.income, Math.abs(c.expenses)])) || 1;
+
+  function restName(account: string) {
+    return _.drop(account.split(":")).join(":");
+  }
+
+  // ---- things that need attention ---------------------------------------
+  interface Alert {
+    tone: "danger" | "warning" | "info";
+    text: string;
+    href: string;
+  }
+
+  $: alerts = buildAlerts(sequences, allocation, issues);
+
+  function buildAlerts(
+    seqs: TransactionSequence[],
+    targets: AllocationTarget[],
+    problems: Issue[]
+  ): Alert[] {
+    const out: Alert[] = [];
+    _.each(seqs, (ts) => {
+      const next = nextUnpaidSchedule(ts);
+      if (next && next.scheduled.isBefore(now())) {
+        out.push({
+          tone: "danger",
+          text: `${ts.key} (${formatCurrencyCrude(
+            totalRecurring(ts)
+          )}) was due ${next.scheduled.fromNow()}`,
+          href: "/cash_flow/recurring"
+        });
+      }
+    });
+    const off = _.filter(targets, (t) => Math.abs(t.current - t.target) >= 5);
+    if (off.length > 0) {
+      out.push({
+        tone: "info",
+        text: `${off.length} allocation target${
+          off.length > 1 ? "s are" : " is"
+        } 5 or more points off`,
+        href: "/assets/allocation"
+      });
+    }
+    const serious = _.filter(problems, (i) => i.level == "danger" || i.level == "warning");
+    if (serious.length > 0) {
+      out.push({
+        tone: "warning",
+        text: `${serious.length} issue${serious.length > 1 ? "s" : ""} found in your ledger data`,
+        href: "/more/doctor"
+      });
+    }
+    return _.sortBy(out, (a) => ({ danger: 0, warning: 1, info: 2 })[a.tone]);
+  }
+
+  // ---- bills, goals, activity ---------------------------------------------
+  $: upcoming = _.chain(sequences)
+    .map((ts) => ({ ts, next: nextUnpaidSchedule(ts) }))
+    .filter((u) => !!u.next)
+    .sortBy((u) => u.next.scheduled.valueOf())
+    .take(5)
+    .value();
+
+  function goalPercent(g: GoalSummary) {
+    return g.target > 0 ? Math.min(100, (g.current / g.target) * 100) : 0;
+  }
+
+  function goalEta(g: GoalSummary) {
+    const d = dayjs(g.targetDate, "YYYY-MM-DD", true);
+    return d.isValid() ? d.fromNow() : "";
+  }
+
+  function activity(t: Transaction) {
+    const amount = _.max(_.map(t.postings, (p) => Math.abs(p.amount))) || 0;
+    const accounts = _.uniq(_.map(t.postings, (p) => _.last(p.account.split(":")))).join(" · ");
+    return { amount, accounts };
+  }
 </script>
 
 <section class="section" class:is-hidden={!isEmpty}>
@@ -151,211 +273,265 @@
   </div>
 </section>
 
-<section class="section tab-networth" class:is-hidden={isEmpty}>
-  <div class="container is-fluid">
-    <div class="tile is-ancestor is-align-items-start">
-      <div class="tile is-4 is-vertical">
-        <div class="tile is-parent">
-          <div class="tile is-child">
-            <div class="content">
-              <p class="subtitle">
-                <a class="secondary-link has-text-grey" href="/assets/networth">Assets</a>
-              </p>
-              <div class="content">
-                <div>
-                  {#if networth}
-                    <nav class="level grid-2">
-                      <LevelItem
-                        narrow
-                        title="Net worth"
-                        color={COLORS.primary}
-                        value={formatCurrency(networth.balanceAmount)}
-                      />
+<section class="dash" class:is-hidden={isEmpty || !loaded}>
+  <header class="d-page-head">
+    <span class="d-muted">As of {now().format("DD MMM YYYY")}</span>
+  </header>
 
-                      <LevelItem
-                        narrow
-                        title="Net Investment"
-                        color={COLORS.secondary}
-                        value={formatCurrency(networth.netInvestmentAmount)}
-                      />
-                    </nav>
-                    <nav class="level grid-2">
-                      <LevelItem
-                        narrow
-                        title="Gain / Loss"
-                        color={networth.gainAmount >= 0 ? COLORS.gainText : COLORS.lossText}
-                        value={formatCurrency(networth.gainAmount)}
-                      />
-
-                      <LevelItem narrow title="XIRR" value={formatFloat(xirr)} />
-                    </nav>
-                  {/if}
-                </div>
-              </div>
-            </div>
-          </div>
+  <!-- 1. Am I getting richer? -->
+  <div class="d-hero-row">
+    <a class="d-hero" href="/assets/networth">
+      <div class="d-hero-top">
+        <div>
+          <span class="stat-label">Net worth</span>
+          <span class="stat-value is-lg"
+            >{networth ? formatCurrency(networth.balanceAmount) : ""}</span
+          >
+          <span class="d-hero-change" class:neg={change < 0}>
+            <i class="fas {change >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}" />
+            {change >= 0 ? "+" : ""}{formatCurrencyCrude(change)}
+            {#if changePct !== null}({formatFloat(changePct, 1)}%){/if}
+            <span class="d-hero-note">in {period == "All" ? "total" : period}</span>
+          </span>
         </div>
-
-        {#if !_.isEmpty(checkingBalances)}
-          <div class="tile is-parent">
-            <article class="tile is-child">
-              <div class="content">
-                <p class="subtitle">
-                  <a class="secondary-link has-text-grey" href="/assets/balance">Checking Balance</a
-                  >
-                </p>
-                <div class="content">
-                  <UntypedMasonryGrid gap={10} maxStretchColumnSize={400} align="stretch">
-                    {#each _.values(checkingBalances) as assetBreakdown}
-                      <div class="is-flex-grow-1">
-                        <BalanceCard {assetBreakdown} />
-                      </div>
-                    {/each}
-                  </UntypedMasonryGrid>
-                </div>
-              </div>
-            </article>
-          </div>
-        {/if}
-
-        <div class="tile is-parent">
-          <article class="tile is-child min-w-0">
-            <p class="subtitle">
-              <a class="secondary-link has-text-grey" href="/cash_flow/monthly">Cash Flow</a>
-            </p>
-            <div class="content box px-2 pb-0">
-              <ZeroState item={cashFlows}>
-                <strong>Oops!</strong> You have not made any transactions in the last 3 months.
-              </ZeroState>
-
-              <LegendCard legends={cashflowLegends} clazz="mb-2 overflow-x-auto" />
-
-              <svg
-                class:is-not-visible={_.isEmpty(cashFlows)}
-                id="d3-current-cash-flow"
-                height="250"
-                width="100%"
-              />
+        {#if networth}
+          <div class="d-hero-stats">
+            <div>
+              <span class="stat-label">Absolute return</span>
+              <b class="stat-value" class:is-neg={networth.gainAmount < 0}>
+                {networth.gainAmount >= 0 ? "+" : ""}{formatCurrencyCrude(networth.gainAmount)}
+                {#if gainPercent !== null}
+                  <small>({gainPercent >= 0 ? "+" : ""}{formatFloat(gainPercent, 1)}%)</small>
+                {/if}
+              </b>
             </div>
-          </article>
-        </div>
-        {#if currentBudget}
-          <div class="tile is-parent">
-            <div class="tile is-child">
-              <div class="content">
-                <p class="subtitle">
-                  <a class="secondary-link has-text-grey" href="/expense/budget">Budget</a>
-                </p>
-                <div class="content">
-                  <div>
-                    {#each currentBudget.accounts as accountBudget (accountBudget)}
-                      <BudgetCard compact {accountBudget} />
-                    {/each}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        {/if}
-        {#if !_.isEmpty(goalSummaries)}
-          <div class="tile">
-            <div class="tile is-parent is-12">
-              <article class="tile is-child">
-                <div class="content">
-                  <p class="subtitle">
-                    <a class="secondary-link has-text-grey" href="/more/goals">Goals</a>
-                  </p>
-                  <div class="content">
-                    {#each goalSummaries as goal}
-                      <GoalSummaryCard {goal} small />
-                    {/each}
-                  </div>
-                </div>
-              </article>
+            <div>
+              <span class="stat-label">XIRR (per year)</span>
+              <b class="stat-value" class:is-neg={xirr < 0}>{formatFloat(xirr)}%</b>
             </div>
           </div>
         {/if}
       </div>
-      <div class="tile is-vertical">
-        <div class="tile is-parent is-12">
-          <article class="tile is-child">
-            <p class="subtitle is-flex is-justify-content-space-between is-align-items-end">
-              <span
-                ><a class="secondary-link has-text-grey" href="/expense/monthly">Expenses</a>
-                <span class="is-size-5 has-text-weight-bold px-2" style="color: {COLORS.expenses}"
-                  >{formatCurrency(totalExpense)}</span
-                ></span
-              >
-              <LastNMonths n={3} bind:value={month} />
-            </p>
-            <div class="content box px-3">
-              <ZeroState item={selectedExpenses}>
-                <strong>Hurray!</strong> You have no expenses this month.
-              </ZeroState>
-              <svg id="d3-current-month-breakdown" width="100%" />
-            </div>
-          </article>
+
+      {#if chart}
+        <svg class="d-spark" viewBox="0 0 600 100" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#fff" stop-opacity="0.28" />
+              <stop offset="1" stop-color="#fff" stop-opacity="0" />
+            </linearGradient>
+          </defs>
+          <path d={chart.area} fill="url(#sparkfill)" />
+          <path d={chart.invested} class="invested" />
+          <path d={chart.worth} class="worth" />
+        </svg>
+      {/if}
+
+      <div class="d-hero-foot">
+        <span><b>{formatCurrencyCrude(added)}</b> you added</span>
+        <span>
+          <b>{marketGain >= 0 ? "+" : ""}{formatCurrencyCrude(marketGain)}</b> market movement
+        </span>
+        <div class="d-tabs" on:click|preventDefault|stopPropagation>
+          {#each PERIODS as p}
+            <button
+              class:active={period == p.key}
+              on:click|preventDefault|stopPropagation={() => (period = p.key)}>{p.key}</button
+            >
+          {/each}
         </div>
-        {#if !_.isEmpty(transactionSequences)}
-          <div class="tile">
-            <div class="tile is-parent is-12">
-              <article class="tile is-child">
-                <div class="content">
-                  <p class="subtitle">
-                    <a class="secondary-link has-text-grey" href="/cash_flow/recurring">Recurring</a
-                    >
-                  </p>
-                  <div class="content box">
-                    <div
-                      class="grid grid-rows-1 overflow-hidden"
-                      style="grid-auto-rows: 0px; grid-template-columns: repeat(auto-fit, minmax(130px, 150px));"
-                    >
-                      {#each transactionSequences as ts (ts)}
-                        <UpcomingCard transactionSequece={ts} />
-                      {/each}
-                    </div>
-                  </div>
-                </div>
-              </article>
-            </div>
-          </div>
-        {/if}
-        {#if !_.isEmpty(transactions)}
-          <div class="tile">
-            <div class="tile is-parent is-12">
-              <article class="tile is-child">
-                <div class="content">
-                  <p class="subtitle">
-                    <a class="secondary-link has-text-grey" href="/ledger/transaction"
-                      >Recent Transactions</a
-                    >
-                  </p>
-                  <div>
-                    <UntypedMasonryGrid gap={10} maxStretchColumnSize={500} align="stretch">
-                      {#each _.take(transactions, 20) as t}
-                        <div class="mr-3 is-flex-grow-1">
-                          <TransactionCard {t} />
-                        </div>
-                      {/each}
-                    </UntypedMasonryGrid>
-                  </div>
-                </div>
-              </article>
-            </div>
-          </div>
+      </div>
+    </a>
+
+    <div class="d-card">
+      <div class="d-card-head">
+        <a href="/assets/allocation">Asset allocation</a>
+        {#if allocation.length > 6}
+          <a class="d-muted" href="/assets/allocation">All {allocation.length}</a>
         {/if}
       </div>
+      {#if !_.isEmpty(allocation)}
+        <div class="d-alloc-list">
+          {#each allocationRows as t}
+            <div class="d-alloc" class:off={Math.abs(t.current - t.target) >= 5}>
+              <span class="d-alloc-name truncate">{t.name}</span>
+              <div class="d-bar">
+                <i style="width: {(Math.min(t.current, allocMax) / allocMax) * 100}%"></i>
+                <u style="left: {(Math.min(t.target, allocMax) / allocMax) * 100}%"></u>
+              </div>
+              <span class="d-alloc-val">
+                <b>{formatFloat(t.current, 0)}%</b>
+                <span class="d-muted">/ {formatFloat(t.target, 0)}%</span>
+              </span>
+            </div>
+          {/each}
+        </div>
+        <p class="d-muted d-legend">
+          <u></u> marks your target. Amber means 5 or more points away.
+        </p>
+      {:else}
+        <p class="d-muted">
+          Set allocation targets in <a href="/more/config">configuration</a> to see how your portfolio
+          compares.
+        </p>
+      {/if}
     </div>
   </div>
+
+  <!-- 2. Does anything need me? -->
+  <div class="d-card d-alerts">
+    <div class="d-card-head">Needs your attention</div>
+    {#if _.isEmpty(alerts)}
+      <p class="d-ok">
+        <i class="fas fa-circle-check" /> All clear. No overdue bills, allocation drift or data issues.
+      </p>
+    {:else}
+      {#each _.take(alerts, 5) as a}
+        <a class="d-alert {a.tone}" href={a.href}>
+          <i
+            class="fas {a.tone == 'danger'
+              ? 'fa-circle-exclamation'
+              : a.tone == 'warning'
+                ? 'fa-triangle-exclamation'
+                : 'fa-circle-info'}"
+          />
+          <span>{a.text}</span>
+          <i class="fas fa-angle-right d-chev" />
+        </a>
+      {/each}
+      {#if alerts.length > 5}<p class="d-muted">and {alerts.length - 5} more</p>{/if}
+    {/if}
+  </div>
+
+  <!-- 3. Am I on track this month? -->
+  <div class="d-grid-2">
+    <div class="d-card">
+      <div class="d-card-head">
+        <a href="/expense/monthly">{now().format("MMMM")} so far</a>
+      </div>
+      <div class="d-stats">
+        <div>
+          <span class="stat-label">Income</span><b class="stat-value"
+            >{formatCurrencyCrude(income)}</b
+          >
+        </div>
+        <div>
+          <span class="stat-label">Spent</span><b class="stat-value">{formatCurrencyCrude(spent)}</b
+          >
+        </div>
+        <div>
+          <span class="stat-label">Saved</span>
+          <b
+            class="stat-value"
+            class:is-pos={savingsRate !== null && savingsRate >= 0}
+            class:is-neg={savingsRate !== null && savingsRate < 0}
+          >
+            {savingsRate === null ? "n/a" : formatFloat(savingsRate, 0) + "%"}
+          </b>
+        </div>
+      </div>
+
+      <div class="d-sub">Where it went</div>
+      <ZeroState item={spendRows}>No spending this month yet.</ZeroState>
+      <div class="d-fill">
+        {#each spendRows as r}
+          <div class="d-bar-row">
+            <div class="d-row-top">
+              <span class="truncate">{r.name}</span>
+              <span>
+                {formatCurrencyCrude(r.actual)}
+                <span class="d-muted"> · {formatFloat((r.actual / (spent || 1)) * 100, 0)}%</span>
+              </span>
+            </div>
+            <div class="d-bar"><i style="width: {(r.actual / maxSpend) * 100}%"></i></div>
+          </div>
+        {/each}
+      </div>
+    </div>
+
+    <div class="d-stack">
+      <div class="d-card">
+        <div class="d-card-head"><a href="/cash_flow/monthly">Income vs spending</a></div>
+        <ZeroState item={cashFlows}>No transactions in the last 3 months.</ZeroState>
+        {#each cashFlows as c}
+          <div class="d-flow">
+            <span class="d-flow-month">{c.date.format("MMM")}</span>
+            <div>
+              <div class="d-flow-bar inc" style="width: {(c.income / flowMax) * 100}%"></div>
+              <div
+                class="d-flow-bar exp"
+                style="width: {(Math.abs(c.expenses) / flowMax) * 100}%"
+              ></div>
+            </div>
+            <span class="d-flow-val">
+              <span class="inc">{formatCurrencyCrude(c.income)}</span>
+              <span class="exp">{formatCurrencyCrude(Math.abs(c.expenses))}</span>
+            </span>
+          </div>
+        {/each}
+      </div>
+
+      {#if !_.isEmpty(upcoming)}
+        <div class="d-card">
+          <div class="d-card-head"><a href="/cash_flow/recurring">Upcoming bills</a></div>
+          {#each upcoming as u}
+            {@const late = u.next.scheduled.isBefore(now())}
+            <div class="d-list-row">
+              <span class="truncate">{u.ts.key}</span>
+              <span class="d-muted" class:late
+                >{late ? "overdue" : u.next.scheduled.format("DD MMM")}</span
+              >
+              <b>{formatCurrencyCrude(totalRecurring(u.ts))}</b>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  </div>
+
+  <!-- 4. Am I heading where I want to? -->
+  {#if !_.isEmpty(goals)}
+    <div class="d-card">
+      <div class="d-card-head"><a href="/more/goals">Goals</a></div>
+      <div class="d-goals">
+        {#each goals as g}
+          <a class="d-goal" href="/more/goals">
+            <div class="d-row-top">
+              <span>
+                {#if g.icon}<span class="custom-icon">{iconGlyph(g.icon)}</span>{/if}
+                {g.name}
+              </span>
+              <b>{formatPercentage(goalPercent(g) / 100)}</b>
+            </div>
+            <div class="d-bar good"><i style="width: {goalPercent(g)}%"></i></div>
+            <div class="d-row-top d-muted">
+              <span>{formatCurrencyCrude(g.current)} of {formatCurrencyCrude(g.target)}</span>
+              <span>{goalEta(g)}</span>
+            </div>
+          </a>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
+  <!-- 5. What just happened? -->
+  {#if !_.isEmpty(transactions)}
+    <div class="d-card">
+      <div class="d-card-head">
+        <a href="/ledger/transaction">Recent activity</a>
+        <a class="d-muted" href="/ledger/transaction">View all</a>
+      </div>
+      {#each _.take(transactions, 6) as t}
+        {@const a = activity(t)}
+        <div class="d-list-row">
+          <span class="d-date">{t.date.format("DD MMM")}</span>
+          <span class="d-grow">
+            <span class="truncate d-title">{t.payee}</span>
+            <span class="d-muted truncate d-sub-line">{a.accounts}</span>
+          </span>
+          <b>{formatCurrency(a.amount)}</b>
+        </div>
+      {/each}
+    </div>
+  {/if}
 </section>
-
-<style lang="scss">
-  p.subtitle {
-    margin-bottom: 0.5rem !important;
-  }
-
-  p.subtitle a.secondary-link {
-    text-transform: uppercase;
-    font-size: 1rem;
-  }
-</style>

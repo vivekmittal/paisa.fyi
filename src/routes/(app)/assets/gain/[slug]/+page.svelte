@@ -135,7 +135,7 @@
 
 <section class="section">
   <div class="container is-fluid">
-    <div class="columns is-flex-wrap-wrap">
+    <div class="columns is-flex-wrap-wrap account-layout txns-last">
       <div class="column is-3">
         <div class="columns is-flex-wrap-wrap">
           {#if overview}
@@ -178,7 +178,7 @@
             </div>
           {/if}
 
-          <div class="column is-full">
+          <div class="column is-full posting-col">
             Postings
             {#each postings as posting}
               <PostingCard

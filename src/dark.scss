@@ -31,6 +31,7 @@ html[data-theme="dark"] {
   &:root {
     color-scheme: dark;
     --fa-border-color: hsl(0, 0%, 15%);
+    --chart-gap: #{$white};
   }
 
   @import "./app.scss";

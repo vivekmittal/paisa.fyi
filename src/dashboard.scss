@@ -1,0 +1,479 @@
+// Home page. Compiled once per theme, so $white, $grey etc. follow light/dark.
+
+.dash {
+  max-width: var(--shell);
+  margin: 0 auto;
+  padding: 0.5rem var(--gutter) 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+  a {
+    color: inherit;
+  }
+  .d-muted {
+    color: $grey;
+    font-weight: 400;
+  }
+  .truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .neg {
+    color: $danger;
+  }
+  .pos {
+    color: $success;
+  }
+}
+
+.d-page-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  font-size: 0.85rem;
+  margin-bottom: -0.25rem;
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: $black-bis;
+    letter-spacing: -0.01em;
+  }
+}
+
+.d-card {
+  background: $white;
+  border: 1px solid $grey-lightest;
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+  min-width: 0;
+}
+
+.d-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+  color: $black-bis;
+  a:hover {
+    color: $link;
+  }
+  .d-muted {
+    font-size: 0.85rem;
+    font-weight: 400;
+  }
+}
+
+.d-hero-row {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
+  gap: 1rem;
+}
+
+.d-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem 1.4rem 1rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0f2a5c, #1d4ed8);
+  color: #fff !important;
+
+  .stat-label {
+    color: rgba(255, 255, 255, 0.7);
+  }
+  .stat-value {
+    color: #fff;
+  }
+}
+
+.d-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.d-hero-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  color: #86efac;
+  &.neg {
+    color: #fca5a5 !important;
+  }
+}
+
+.d-hero-note {
+  color: rgba(255, 255, 255, 0.65);
+  font-weight: 400;
+}
+
+.d-tabs {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 2px;
+  button {
+    border: 0;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.8);
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 0.2rem 0.65rem;
+    border-radius: 6px;
+    cursor: pointer;
+    &.active {
+      background: #fff;
+      color: #0f2a5c;
+      font-weight: 600;
+    }
+  }
+}
+
+.d-spark {
+  width: 100%;
+  height: 84px;
+  display: block;
+  path {
+    fill: none;
+    vector-effect: non-scaling-stroke;
+  }
+  .worth {
+    stroke: #fff;
+    stroke-width: 2;
+  }
+  .invested {
+    stroke: rgba(255, 255, 255, 0.5);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 4;
+  }
+}
+
+.d-hero-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.75);
+  b {
+    color: #fff;
+  }
+}
+
+.d-row-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.d-alloc,
+.d-bar-row {
+  margin-bottom: 0.8rem;
+}
+
+.d-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: $white-ter;
+  i {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    background: $link;
+  }
+  u {
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    width: 2px;
+    background: $grey-dark;
+    text-decoration: none;
+  }
+  &.over i {
+    background: $danger;
+  }
+  &.good i {
+    background: $success;
+  }
+}
+
+.d-alerts {
+  .d-ok {
+    color: $success;
+    font-weight: 500;
+  }
+}
+
+.d-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.2rem;
+  border-top: 1px solid $grey-lightest;
+  &:first-of-type {
+    border-top: 0;
+  }
+  &.danger > i:first-child {
+    color: $danger;
+  }
+  &.warning > i:first-child {
+    color: $warning;
+  }
+  &.info > i:first-child {
+    color: $link;
+  }
+  span {
+    flex: 1;
+    min-width: 0;
+  }
+  .d-chev {
+    color: $grey-light;
+  }
+  &:hover {
+    background: $white-bis;
+  }
+}
+
+.d-grid-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.d-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.d-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.d-sub {
+  font-size: 0.8rem;
+  color: $grey;
+  margin-bottom: 0.6rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid $grey-lightest;
+}
+
+.d-flow {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 0.6rem;
+  font-size: 0.85rem;
+}
+.d-flow-month {
+  color: $grey;
+}
+.d-flow-bar {
+  height: 7px;
+  border-radius: 4px;
+  margin: 2px 0;
+  min-width: 2px;
+  &.inc {
+    background: $success;
+  }
+  &.exp {
+    background: $danger;
+    opacity: 0.8;
+  }
+}
+.d-flow-val {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  .inc {
+    color: $success;
+  }
+  .exp {
+    color: $danger;
+  }
+}
+
+.d-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid $grey-lightest;
+  &:first-of-type {
+    border-top: 0;
+  }
+  > :first-child:not(.d-date) {
+    flex: 1;
+    min-width: 0;
+  }
+  b {
+    font-variant-numeric: tabular-nums;
+    color: $black-bis;
+    white-space: nowrap;
+  }
+  .late {
+    color: $danger;
+    font-weight: 600;
+  }
+}
+.d-date {
+  width: 3.2rem;
+  flex: none;
+  font-size: 0.85rem;
+  color: $grey;
+}
+.d-grow {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.d-title {
+  color: $black-bis;
+}
+.d-sub-line {
+  font-size: 0.8rem;
+}
+
+.d-goals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 1.25rem 1.5rem;
+}
+.d-goal .d-bar {
+  margin-bottom: 0.3rem;
+}
+
+@include mobile {
+  .dash {
+    gap: 0.75rem;
+  }
+  .d-hero-row,
+  .d-grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+  .d-card {
+    padding: 0.85rem;
+  }
+}
+
+.d-legend {
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+  u {
+    display: inline-block;
+    width: 2px;
+    height: 0.8em;
+    background: $grey-dark;
+    vertical-align: middle;
+    margin-right: 0.25rem;
+    text-decoration: none;
+  }
+}
+
+.d-drift {
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.d-hero-stats {
+  display: flex;
+  gap: 1.75rem;
+  padding-left: 1.5rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+  .stat-value {
+    color: #86efac;
+    &.is-neg {
+      color: #fca5a5;
+    }
+    small {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+  }
+}
+
+// Cards in a row share a height, so spread content instead of leaving a blank tail
+.d-hero-row > .d-card {
+  display: flex;
+  flex-direction: column;
+}
+.d-alloc-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+}
+
+.d-grid-2 > .d-card {
+  display: flex;
+  flex-direction: column;
+}
+.d-fill {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.5rem;
+  .d-bar-row {
+    margin-bottom: 0;
+  }
+}
+
+.d-hero-foot .d-tabs {
+  margin-left: auto;
+}
+.d-hero {
+  justify-content: space-between;
+}
+@include mobile {
+  .d-hero-stats {
+    border-left: 0;
+    padding-left: 0;
+    width: 100%;
+    padding-top: 0.6rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.18);
+  }
+}
+
+// compact allocation rows: name | bar | current / target
+.d-alloc {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) 5.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0;
+  font-size: 0.9rem;
+  .d-alloc-val {
+    text-align: right;
+    white-space: nowrap;
+  }
+  &.off .d-bar i {
+    background: $warning;
+  }
+}
+.d-alloc-list {
+  justify-content: flex-start;
+  gap: 0.65rem;
+}
+.d-hero-row {
+  align-items: stretch;
+}
