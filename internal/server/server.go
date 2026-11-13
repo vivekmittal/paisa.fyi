@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ananthakumaran/paisa/internal/accounting"
+	"github.com/ananthakumaran/paisa/internal/cache"
 	"github.com/ananthakumaran/paisa/internal/config"
 	"github.com/ananthakumaran/paisa/internal/generator"
 	"github.com/ananthakumaran/paisa/internal/ledger"
@@ -39,6 +40,15 @@ func Build(db *gorm.DB, enableCompression bool) *gin.Engine {
 	router.Use(Logger(log.StandardLogger()), gin.Recovery())
 
 	router.Use(TokenAuthMiddleware())
+
+	// Another process (for example `paisa update` from a timer) can change the
+	// database. Drop the in-memory caches when it signals that it finished.
+	router.Use(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api") {
+			cache.ClearIfStale()
+		}
+		c.Next()
+	})
 
 	router.GET("/robots.txt", func(c *gin.Context) {
 		c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte("User-agent: *\nDisallow: /"))

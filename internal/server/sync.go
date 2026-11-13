@@ -15,6 +15,7 @@ type SyncRequest struct {
 
 func Sync(db *gorm.DB, request SyncRequest) gin.H {
 	cache.Clear()
+	defer cache.MarkSynced()
 
 	if request.Journal {
 		message, err := model.SyncJournal(db)
